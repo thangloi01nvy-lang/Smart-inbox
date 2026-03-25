@@ -1,13 +1,41 @@
 export interface Student {
   id: string;
   name: string;
-  dataPoints: number;
-  status: 'READY' | 'PENDING';
-  trend: number[]; // Array of values for the sparkline
+  classId: string;
+  currentScore: number;
+  targetScore: number;
+  estimatedDaysToTarget: number;
+  lastComment: string;
+  lastAnalysisDate?: string;
+  teacherUid: string;
+  dataPoints?: number; // For UI
+  status?: 'READY' | 'PENDING'; // For UI
+  trend?: number[]; // For UI
 }
 
 export interface Class {
   id: string;
   name: string;
   studentIds: string[];
+  teacherUid: string;
+}
+
+export interface StudentAnalysis {
+  name: string;
+  comment: string;
+  currentScore: number;
+  targetScore: number;
+  estimatedDaysToTarget: number;
+}
+
+export interface AnalysisResult {
+  id: string;
+  date: string;
+  classId: string;
+  className: string;
+  transcript: string;
+  summary: string;
+  audioUrl?: string;
+  teacherUid: string;
+  students: StudentAnalysis[];
 }

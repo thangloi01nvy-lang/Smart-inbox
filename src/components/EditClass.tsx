@@ -8,23 +8,24 @@ interface EditClassProps {
   allStudents: Student[];
   onSave: (cls: Class) => void;
   onDelete: (id: string) => void;
+  onSaveStudent: (student: Student, classId: string) => void;
 }
 
-export function EditClass({ onNavigate, classToEdit, allStudents, onSave, onDelete }: EditClassProps) {
+export function EditClass({ onNavigate, classToEdit, allStudents, onSave, onDelete, onSaveStudent }: EditClassProps) {
   const [name, setName] = useState(classToEdit?.name || '');
   const [assignedStudentIds, setAssignedStudentIds] = useState<string[]>(classToEdit?.studentIds || []);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const assignedStudents = allStudents.filter(s => assignedStudentIds.includes(s.id));
-  const availableStudents = allStudents.filter(s => !assignedStudentIds.includes(s.id) && 
+  const assignedStudents = allStudents.filter(s => s.classId === classToEdit?.id);
+  const availableStudents = allStudents.filter(s => s.classId !== classToEdit?.id && 
     (s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.id.toLowerCase().includes(searchTerm.toLowerCase())));
 
-  const handleAddStudent = (id: string) => {
-    setAssignedStudentIds(prev => [...prev, id]);
+  const handleAddStudent = (student: Student) => {
+    onSaveStudent({ ...student, classId: classToEdit?.id || '' }, classToEdit?.id || '');
   };
 
-  const handleRemoveStudent = (id: string) => {
-    setAssignedStudentIds(prev => prev.filter(sid => sid !== id));
+  const handleRemoveStudent = (student: Student) => {
+    onSaveStudent({ ...student, classId: 'UNASSIGNED' }, 'UNASSIGNED');
   };
 
   const handleSave = () => {
@@ -32,7 +33,8 @@ export function EditClass({ onNavigate, classToEdit, allStudents, onSave, onDele
     onSave({
       id: classToEdit?.id || `CLASS-${Date.now()}`,
       name: name.trim().toUpperCase(),
-      studentIds: assignedStudentIds
+      studentIds: [], // Keep for compatibility if needed, but we'll use classId
+      teacherUid: classToEdit?.teacherUid || ''
     });
   };
 
@@ -80,7 +82,7 @@ export function EditClass({ onNavigate, classToEdit, allStudents, onSave, onDele
                     </div>
                   </div>
                   <button 
-                    onClick={() => handleRemoveStudent(student.id)}
+                    onClick={() => handleRemoveStudent(student)}
                     className="shrink-0 ml-4 h-8 px-3 border-2 border-primary text-primary font-bold text-[10px] uppercase hover:bg-primary hover:text-black focus:outline-none">
                     [ REMOVE ]
                   </button>
@@ -120,7 +122,7 @@ export function EditClass({ onNavigate, classToEdit, allStudents, onSave, onDele
                     </div>
                   </div>
                   <button 
-                    onClick={() => handleAddStudent(student.id)}
+                    onClick={() => handleAddStudent(student)}
                     className="shrink-0 ml-4 h-8 px-3 bg-accent text-black font-bold text-[10px] uppercase hover:bg-white focus:outline-none border-2 border-accent hover:border-white">
                     [ ADD ]
                   </button>

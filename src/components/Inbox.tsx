@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Camera, FileText, Plus, X, Upload, Square, Brain } from 'lucide-react';
 import { analyzeMedia, analyzeText, AnalysisResult } from '../services/geminiService';
 import { Class } from '../types';
+import { storage, auth } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export function Inbox({ onNavigate, onAnalysisComplete, classes }: { 
   onNavigate: (s: string) => void, 
-  onAnalysisComplete?: (result: AnalysisResult) => void,
+  onAnalysisComplete?: (result: any) => void,
   classes: Class[]
 }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -66,6 +68,16 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
   const processMediaBlob = async (blob: Blob, mimeType: string) => {
     setIsProcessing(true);
     try {
+      // 1. Upload to Firebase Storage
+      let audioUrl = '';
+      if (auth.currentUser) {
+        const fileId = Date.now().toString();
+        const storageRef = ref(storage, `recordings/${auth.currentUser.uid}/${fileId}`);
+        const uploadResult = await uploadBytes(storageRef, blob);
+        audioUrl = await getDownloadURL(uploadResult.ref);
+      }
+
+      // 2. Analyze with Gemini
       const reader = new FileReader();
       reader.readAsDataURL(blob);
       reader.onloadend = async () => {
@@ -73,7 +85,7 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
         try {
           const result = await analyzeMedia(base64data, mimeType, selectedClass);
           if (onAnalysisComplete) {
-            onAnalysisComplete(result);
+            onAnalysisComplete({ ...result, audioUrl });
           }
           setIsProcessing(false);
           onNavigate('ANALYSIS_DETAIL');
@@ -111,7 +123,20 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
     const file = e.target.files?.[0];
     if (file) {
       setShowMenu(false);
-      processMediaBlob(file, file.type);
+      let mimeType = file.type;
+      
+      // Normalize MP3 mime type for better compatibility with Gemini
+      if (file.name.toLowerCase().endsWith('.mp3')) {
+        mimeType = 'audio/mpeg';
+      } else if (!mimeType) {
+        // Fallback for common types if browser fails to detect
+        if (file.name.toLowerCase().endsWith('.wav')) mimeType = 'audio/wav';
+        if (file.name.toLowerCase().endsWith('.m4a')) mimeType = 'audio/mp4';
+        if (file.name.toLowerCase().endsWith('.png')) mimeType = 'image/png';
+        if (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) mimeType = 'image/jpeg';
+      }
+      
+      processMediaBlob(file, mimeType || 'application/octet-stream');
     }
   };
 

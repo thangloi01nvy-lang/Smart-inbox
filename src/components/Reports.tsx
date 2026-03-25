@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowLeft, FileText, Calendar, Users, ChevronRight } from 'lucide-react';
-import { AnalysisResult } from '../services/geminiService';
+import { AnalysisResult } from '../types';
 
 export function Reports({ onNavigate, reports, onSelectReport }: { onNavigate: (s: string) => void, reports: AnalysisResult[], onSelectReport: (report: AnalysisResult) => void }) {
   return (

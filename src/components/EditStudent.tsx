@@ -27,8 +27,15 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
       name: name.trim().toUpperCase(),
       dataPoints: studentToEdit?.dataPoints || 0,
       status: status,
-      trend: studentToEdit?.trend || []
-    }, classId);
+      trend: studentToEdit?.trend || [],
+      classId: classId === 'unassigned' ? 'UNASSIGNED' : classId,
+      teacherUid: studentToEdit?.teacherUid || '',
+      currentScore: studentToEdit?.currentScore || 0,
+      targetScore: studentToEdit?.targetScore || 100,
+      estimatedDaysToTarget: studentToEdit?.estimatedDaysToTarget || 0,
+      lastComment: studentToEdit?.lastComment || '',
+      lastAnalysisDate: studentToEdit?.lastAnalysisDate || ''
+    }, classId === 'unassigned' ? 'UNASSIGNED' : classId);
   };
 
   return (

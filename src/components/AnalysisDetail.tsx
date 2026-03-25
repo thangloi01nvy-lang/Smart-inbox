@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { ArrowLeft, Mic, Play, Brain, User, X, Plus, Send, TrendingUp } from 'lucide-react';
-import { AnalysisResult } from '../services/geminiService';
+import { ArrowLeft, Mic, Play, Brain, User, X, Plus, Send, TrendingUp, Music } from 'lucide-react';
+import { AnalysisResult } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s: string) => void, analysisResult: AnalysisResult | null }) {
@@ -52,28 +52,34 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
 
       {/* Main Scrollable Content */}
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
-        {/* Collapsible Media Header */}
+        {/* Media Header */}
         <section className="bg-surface border-2 border-border-harsh p-4 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Mic className="text-muted w-8 h-8" />
+              {analysisResult?.audioUrl ? <Music className="text-primary w-8 h-8" /> : <Mic className="text-muted w-8 h-8" />}
               <div>
                 <p className="font-bold text-sm uppercase">SESSION_MEDIA</p>
-                <p className="text-muted text-xs">AI PROCESSED</p>
+                <p className="text-muted text-xs">{analysisResult?.audioUrl ? 'CLOUD_STORED' : 'AI PROCESSED'}</p>
               </div>
             </div>
-            <button className="bg-primary text-black w-10 h-10 flex items-center justify-center font-bold border-2 border-border-harsh">
-              <Play size={24} fill="currentColor" />
-            </button>
           </div>
-          {/* Progress Bar Mini */}
-          <div className="h-2 bg-border-harsh w-full relative">
-            <div className="absolute left-0 top-0 bottom-0 bg-primary w-[35%]"></div>
-            <div className="absolute left-[35%] top-[-4px] bottom-[-4px] w-2 bg-white"></div>
-          </div>
-          <button className="w-full py-2 text-xs font-bold text-muted border-2 border-border-harsh uppercase hover:text-white hover:bg-[#222]">
-            [+] EXPAND MEDIA
-          </button>
+          
+          {analysisResult?.audioUrl && (
+            <div className="mt-2">
+              <audio 
+                src={analysisResult.audioUrl} 
+                controls 
+                className="w-full h-10 accent-primary"
+              />
+            </div>
+          )}
+          
+          {!analysisResult?.audioUrl && (
+            <div className="h-2 bg-border-harsh w-full relative">
+              <div className="absolute left-0 top-0 bottom-0 bg-primary w-[35%]"></div>
+              <div className="absolute left-[35%] top-[-4px] bottom-[-4px] w-2 bg-white"></div>
+            </div>
+          )}
         </section>
 
         {/* AI Summary Box */}

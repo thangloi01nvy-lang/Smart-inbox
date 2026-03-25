@@ -18,8 +18,7 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
     setExpandedClassId(expandedClassId === id ? null : id);
   };
 
-  const assignedStudentIds = new Set(classes.flatMap(c => c.studentIds));
-  const unassignedStudents = students.filter(s => !assignedStudentIds.has(s.id));
+  const unassignedStudents = students.filter(s => !s.classId || s.classId === 'UNASSIGNED');
 
   const filteredStudents = (studentList: Student[]) => 
     studentList.filter(s => 
@@ -68,7 +67,7 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
       <main className="flex-1 p-4 flex flex-col gap-4 font-mono w-full overflow-y-auto">
         {classes.map((cls) => {
           const isExpanded = expandedClassId === cls.id;
-          const classStudents = filteredStudents(students.filter(s => cls.studentIds.includes(s.id)));
+          const classStudents = filteredStudents(students.filter(s => s.classId === cls.id));
 
           if (searchTerm && classStudents.length === 0) return null;
 
@@ -82,7 +81,7 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
                   <span className="font-bold text-lg">{isExpanded ? '[-]' : '[+]'}</span>
                   <h3 className="font-bold text-lg uppercase tracking-wider">{cls.name}</h3>
                   <span className={`text-[10px] px-2 py-0.5 ml-2 border ${isExpanded ? 'bg-background-dark text-muted border-background-dark' : 'text-muted border-muted'}`}>
-                    {cls.studentIds.length}_STU
+                    {classStudents.length}_STU
                   </span>
                 </div>
                 <button 

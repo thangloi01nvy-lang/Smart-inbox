@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "Class": {
+      "title": "Class",
+      "description": "A class or group of students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the class" },
+        "name": { "type": "string", "description": "Name of the class" },
+        "studentIds": { "type": "array", "items": { "type": "string" }, "description": "List of student IDs assigned to this class" },
+        "teacherUid": { "type": "string", "description": "UID of the teacher who owns this class" }
+      },
+      "required": ["id", "name", "studentIds", "teacherUid"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "A student in a class",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the student" },
+        "name": { "type": "string", "description": "Name of the student" },
+        "classId": { "type": "string", "description": "ID of the class the student belongs to" },
+        "currentScore": { "type": "number", "description": "Current performance score (0-100)" },
+        "targetScore": { "type": "number", "description": "Target performance score (0-100)" },
+        "estimatedDaysToTarget": { "type": "number", "description": "Estimated days to reach target" },
+        "lastComment": { "type": "string", "description": "Most recent feedback comment" },
+        "teacherUid": { "type": "string", "description": "UID of the teacher who owns this student" }
+      },
+      "required": ["id", "name", "classId", "teacherUid"]
+    },
+    "AnalysisResult": {
+      "title": "AnalysisResult",
+      "description": "Result of an AI analysis session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the analysis" },
+        "date": { "type": "string", "format": "date-time", "description": "When the analysis was performed" },
+        "classId": { "type": "string", "description": "ID of the class analyzed" },
+        "className": { "type": "string", "description": "Name of the class at the time of analysis" },
+        "transcript": { "type": "string", "description": "Full transcript or description" },
+        "summary": { "type": "string", "description": "Overall summary" },
+        "audioUrl": { "type": "string", "description": "URL to the audio file in Firebase Storage" },
+        "teacherUid": { "type": "string", "description": "UID of the teacher who owns this analysis" },
+        "students": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "comment": { "type": "string" },
+              "currentScore": { "type": "number" },
+              "targetScore": { "type": "number" },
+              "estimatedDaysToTarget": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["id", "date", "classId", "className", "transcript", "summary", "teacherUid"]
+    }
+  },
+  "firestore": {
+    "/classes/{classId}": {
+      "schema": "Class",
+      "description": "Collection of classes"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Collection of students across all classes"
+    },
+    "/analysisResults/{resultId}": {
+      "schema": "AnalysisResult",
+      "description": "Collection of AI analysis results"
+    }
+  }
+}
