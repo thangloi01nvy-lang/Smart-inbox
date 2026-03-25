@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Camera, FileText, Plus, X, Upload, Square, Brain } from 'lucide-react';
 import { analyzeMedia, analyzeText, AnalysisResult } from '../services/geminiService';
+import { Class } from '../types';
 
-export function Inbox({ onNavigate, onAnalysisComplete }: { onNavigate: (s: string) => void, onAnalysisComplete?: (result: AnalysisResult) => void }) {
+export function Inbox({ onNavigate, onAnalysisComplete, classes }: { 
+  onNavigate: (s: string) => void, 
+  onAnalysisComplete?: (result: AnalysisResult) => void,
+  classes: Class[]
+}) {
   const [showMenu, setShowMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedClass, setSelectedClass] = useState('ADVANCED_ESL_01');
+  const [selectedClass, setSelectedClass] = useState(classes[0]?.name || 'UNASSIGNED');
   const [isTypingNote, setIsTypingNote] = useState(false);
   const [noteText, setNoteText] = useState('');
   
@@ -166,9 +171,10 @@ export function Inbox({ onNavigate, onAnalysisComplete }: { onNavigate: (s: stri
             onChange={(e) => setSelectedClass(e.target.value)}
             className="w-full bg-surface border-2 border-border-harsh text-white p-3 text-sm font-bold uppercase appearance-none focus:border-primary focus:outline-none cursor-pointer"
           >
-            <option value="ADVANCED_ESL_01">ADVANCED_ESL_01</option>
-            <option value="IELTS_PREP_01">IELTS_PREP_01</option>
-            <option value="BEGINNER_COMM_B">BEGINNER_COMM_B</option>
+            {classes.map(c => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+            {classes.length === 0 && <option value="UNASSIGNED">NO_CLASSES_FOUND</option>}
           </select>
         </div>
       </div>

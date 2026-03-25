@@ -114,7 +114,13 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col items-center bg-background-dark text-text-main font-mono selection:bg-primary selection:text-white">
       <div className="w-full max-w-3xl min-h-screen flex flex-col relative border-x-2 border-border-harsh bg-background-dark">
-        {currentScreen === 'INBOX' && <Inbox onNavigate={navigate} onAnalysisComplete={handleAnalysisComplete} />}
+        {currentScreen === 'INBOX' && (
+          <Inbox 
+            onNavigate={navigate} 
+            onAnalysisComplete={handleAnalysisComplete} 
+            classes={classes} 
+          />
+        )}
         {currentScreen === 'ROSTER' && (
           <ClassRoster 
             onNavigate={navigate} 
