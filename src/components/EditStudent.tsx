@@ -13,6 +13,7 @@ interface EditStudentProps {
 export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArchive }: EditStudentProps) {
   const [name, setName] = useState(studentToEdit?.name || '');
   const [id, setId] = useState(studentToEdit?.id || '');
+  const [status, setStatus] = useState<'READY' | 'PENDING'>(studentToEdit?.status || 'PENDING');
   
   // Find which class the student is currently in
   const currentClass = classes.find(c => c.studentIds.includes(studentToEdit?.id || ''));
@@ -25,7 +26,7 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
       id: id.trim().toUpperCase(),
       name: name.trim().toUpperCase(),
       dataPoints: studentToEdit?.dataPoints || 0,
-      status: studentToEdit?.status || 'PENDING',
+      status: status,
       trend: studentToEdit?.trend || []
     }, classId);
   };
@@ -44,7 +45,7 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
       
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
         <div className="text-muted text-[10px] font-mono uppercase tracking-widest border-b border-border-harsh pb-2 mb-2">
-          [SYS_MSG] RECORD_ID: {studentToEdit?.id || 'NEW'} | STATUS: {studentToEdit?.status || 'INITIALIZING'}
+          [SYS_MSG] RECORD_ID: {studentToEdit?.id || 'NEW'} | STATUS: {status}
         </div>
         
         <div className="flex flex-col gap-2">
@@ -92,6 +93,22 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
             </div>
           </div>
         </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-white text-xs font-bold uppercase tracking-widest">QUICK_ACTIONS</label>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setStatus('READY')}
+              className={`flex-1 py-3 border-2 font-bold text-xs uppercase transition-all ${status === 'READY' ? 'bg-accent text-black border-accent' : 'border-border-harsh text-muted hover:border-accent'}`}>
+              [SET_READY]
+            </button>
+            <button 
+              onClick={() => setStatus('PENDING')}
+              className={`flex-1 py-3 border-2 font-bold text-xs uppercase transition-all ${status === 'PENDING' ? 'bg-primary text-black border-primary' : 'border-border-harsh text-muted hover:border-primary'}`}>
+              [SET_PENDING]
+            </button>
+          </div>
+        </div>
         
         {studentToEdit && (
           <div className="mt-4 p-3 border-2 border-border-harsh bg-surface flex flex-col gap-1">
@@ -101,7 +118,7 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
             </div>
             <div className="flex justify-between text-[10px] text-muted font-mono uppercase">
               <span>CURRENT_STATUS:</span>
-              <span className={studentToEdit.status === 'READY' ? 'text-accent' : 'text-primary'}>{studentToEdit.status}</span>
+              <span className={status === 'READY' ? 'text-accent' : 'text-primary'}>{status}</span>
             </div>
           </div>
         )}
