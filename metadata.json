@@ -1,0 +1,5 @@
+{
+  "name": "Smart Inbox",
+  "description": "A brutalist AI-powered inbox for teachers to record audio, take photos, and generate reports.",
+  "requestFramePermissions": ["microphone", "camera"]
+}
