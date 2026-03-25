@@ -120,18 +120,49 @@ export default function App() {
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const isInIframe = window.self !== window.top;
+
     try {
-      // Try popup first
+      // On mobile Safari, popups are almost always blocked or problematic
+      // Especially if we are in an iframe
+      if (isMobile && isSafari) {
+        if (isInIframe) {
+          // In an iframe on mobile Safari, redirect often fails or is blocked
+          // Suggest opening in a new tab
+          const confirmRedirect = window.confirm("Trình duyệt Safari trên di động thường chặn đăng nhập khi chạy trong khung (iframe). Bạn có muốn thử đăng nhập bằng cách chuyển hướng không? Nếu không thành công, hãy mở ứng dụng trong tab mới.");
+          if (confirmRedirect) {
+            await signInWithRedirect(auth, provider);
+          }
+        } else {
+          await signInWithRedirect(auth, provider);
+        }
+        return;
+      }
+
+      // Try popup first for desktop/other browsers
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      console.error("Login Error (Popup):", error);
-      // If popup is blocked (common in Safari mobile), try redirect
-      if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
+      console.error("Login Error (Initial):", error);
+      
+      // Fallback to redirect for any popup-related failure
+      const isPopupError = [
+        'auth/popup-blocked',
+        'auth/cancelled-popup-request',
+        'auth/popup-closed-by-user',
+        'auth/internal-error'
+      ].includes(error.code);
+
+      if (isPopupError) {
         try {
           await signInWithRedirect(auth, provider);
         } catch (redirectError) {
           console.error("Login Error (Redirect):", redirectError);
+          alert("Đăng nhập bị chặn bởi trình duyệt. Vui lòng mở ứng dụng trong tab mới hoặc tắt chặn popup trong cài đặt Safari.");
         }
+      } else {
+        alert("Lỗi đăng nhập: " + error.message);
       }
     }
   };
