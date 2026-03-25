@@ -18,6 +18,8 @@ import { ref, deleteObject } from 'firebase/storage';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut,
   User
@@ -69,6 +71,12 @@ export default function App() {
       setUser(u);
       setIsAuthReady(true);
     });
+
+    // Handle redirect result for mobile browsers (Safari)
+    getRedirectResult(auth).catch((error) => {
+      console.error("Redirect Login Error:", error);
+    });
+
     return () => unsubscribe();
   }, []);
 
@@ -113,9 +121,18 @@ export default function App() {
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
+      // Try popup first
       await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Login Error:", error);
+    } catch (error: any) {
+      console.error("Login Error (Popup):", error);
+      // If popup is blocked (common in Safari mobile), try redirect
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
+        try {
+          await signInWithRedirect(auth, provider);
+        } catch (redirectError) {
+          console.error("Login Error (Redirect):", redirectError);
+        }
+      }
     }
   };
 
