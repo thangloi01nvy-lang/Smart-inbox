@@ -70,9 +70,11 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
     try {
       // 1. Upload to Firebase Storage
       let audioUrl = '';
+      let storagePath = '';
       if (auth.currentUser) {
         const fileId = Date.now().toString();
-        const storageRef = ref(storage, `recordings/${auth.currentUser.uid}/${fileId}`);
+        storagePath = `recordings/${auth.currentUser.uid}/${fileId}`;
+        const storageRef = ref(storage, storagePath);
         const uploadResult = await uploadBytes(storageRef, blob);
         audioUrl = await getDownloadURL(uploadResult.ref);
       }
@@ -85,7 +87,7 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
         try {
           const result = await analyzeMedia(base64data, mimeType, selectedClass);
           if (onAnalysisComplete) {
-            onAnalysisComplete({ ...result, audioUrl });
+            onAnalysisComplete({ ...result, audioUrl, storagePath });
           }
           setIsProcessing(false);
           onNavigate('ANALYSIS_DETAIL');

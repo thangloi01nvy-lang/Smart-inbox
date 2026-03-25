@@ -13,7 +13,8 @@ import { Inbox } from './components/Inbox';
 import { Reports } from './components/Reports';
 import { AnalysisResult as GeminiResult } from './services/geminiService';
 import { Class, Student, AnalysisResult } from './types';
-import { auth, db } from './firebase';
+import { auth, db, storage } from './firebase';
+import { ref, deleteObject } from 'firebase/storage';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
@@ -147,6 +148,12 @@ export default function App() {
     try {
       await setDoc(doc(db, 'analysisResults', id), newReport);
       setAnalysisResult(newReport);
+      
+      // Delete from Storage to save space (as requested by user)
+      if (result.storagePath) {
+        const fileRef = ref(storage, result.storagePath);
+        deleteObject(fileRef).catch(err => console.error("Error deleting file from storage:", err));
+      }
       
       // Update students in Firestore
       for (const sAnalysis of result.students) {

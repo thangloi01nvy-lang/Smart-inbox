@@ -65,11 +65,23 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
           </div>
           
           {analysisResult?.audioUrl && (
-            <div className="mt-2">
+            <div className="mt-2 flex flex-col gap-2">
               <audio 
                 src={analysisResult.audioUrl} 
                 controls 
                 className="w-full h-10 accent-primary"
+                onError={(e) => {
+                  // If the file was deleted from storage, the URL will fail
+                  const target = e.target as HTMLAudioElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector('.audio-deleted-msg')) {
+                    const msg = document.createElement('p');
+                    msg.className = 'audio-deleted-msg text-[10px] text-primary font-bold uppercase italic';
+                    msg.innerText = '[ AUDIO_DELETED_TO_SAVE_SPACE ]';
+                    parent.appendChild(msg);
+                  }
+                }}
               />
             </div>
           )}

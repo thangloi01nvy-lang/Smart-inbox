@@ -36,6 +36,7 @@ export interface AnalysisResult {
   transcript: string;
   summary: string;
   audioUrl?: string;
+  storagePath?: string;
   teacherUid: string;
   students: StudentAnalysis[];
 }

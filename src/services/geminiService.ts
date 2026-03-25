@@ -30,6 +30,8 @@ export interface AnalysisResult {
   students: StudentAnalysis[];
   transcript: string;
   summary: string;
+  audioUrl?: string;
+  storagePath?: string;
 }
 
 export async function analyzeMedia(
