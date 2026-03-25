@@ -1,7 +1,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize the Gemini AI client
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Lazy initialization of the Gemini AI client
+let aiInstance: GoogleGenAI | null = null;
+
+const getAiClient = () => {
+  if (aiInstance) return aiInstance;
+
+  const key = (import.meta as any).env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
+  
+  if (!key) {
+    throw new Error("Mã API Gemini chưa được cấu hình. Vui lòng thêm VITE_GEMINI_API_KEY vào biến môi trường trong Vercel.");
+  }
+
+  aiInstance = new GoogleGenAI({ apiKey: key });
+  return aiInstance;
+};
 
 export interface StudentAnalysis {
   name: string;
@@ -24,6 +37,7 @@ export async function analyzeMedia(
   mimeType: string,
   contextClass: string
 ): Promise<AnalysisResult> {
+  const ai = getAiClient();
   const prompt = `
     You are an AI assistant for a teacher. Analyze the provided media (audio or image).
     The context is a class named "${contextClass}".
@@ -112,6 +126,7 @@ export async function analyzeText(
   text: string,
   contextClass: string
 ): Promise<AnalysisResult> {
+  const ai = getAiClient();
   const prompt = `
     You are an AI assistant for a teacher. Analyze the provided text note from the teacher.
     The context is a class named "${contextClass}".
