@@ -47,6 +47,7 @@ export async function analyzeMedia(
     Tasks:
     1. Identify any students mentioned or present in the content (e.g., "Minh", "Lan").
     2. For each student identified, provide a brief, constructive comment on their performance (e.g., pronunciation, grammar, vocabulary, or homework quality).
+       IMPORTANT: Ensure each student appears only ONCE in the students array. If a student is mentioned multiple times, aggregate all feedback into their single comment field.
     3. Estimate their current score (0-100), their target score (usually 100), and predict the number of days (estimatedDaysToTarget) they will need to reach their target based on current performance.
     4. Provide a full transcript of the audio, or a detailed description of the image content.
     5. Provide a short overall summary.
@@ -136,6 +137,7 @@ export async function analyzeText(
     Tasks:
     1. Identify any students mentioned or present in the content (e.g., "Minh", "Lan").
     2. For each student identified, provide a brief, constructive comment on their performance (e.g., pronunciation, grammar, vocabulary, or homework quality).
+       IMPORTANT: Ensure each student appears only ONCE in the students array. If a student is mentioned multiple times, aggregate all feedback into their single comment field.
     3. Estimate their current score (0-100), their target score (usually 100), and predict the number of days (estimatedDaysToTarget) they will need to reach their target based on current performance.
     4. Provide the original text as the transcript.
     5. Provide a short overall summary.

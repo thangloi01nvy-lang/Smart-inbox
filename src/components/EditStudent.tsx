@@ -137,6 +137,20 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
             </div>
           </div>
         )}
+
+        {studentToEdit?.comments && studentToEdit.comments.length > 0 && (
+          <div className="flex flex-col gap-2 mt-4">
+            <label className="text-white text-xs font-bold uppercase tracking-widest">FEEDBACK_HISTORY</label>
+            <div className="flex flex-col gap-3">
+              {[...studentToEdit.comments].reverse().map((c, i) => (
+                <div key={i} className="bg-surface border-2 border-border-harsh p-3 flex flex-col gap-2">
+                  <span className="text-[10px] text-primary font-bold uppercase">{new Date(c.date).toLocaleString()}</span>
+                  <p className="text-sm text-white leading-relaxed">{c.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
       
       <div className="fixed bottom-0 left-0 right-0 p-4 border-t-2 border-border-harsh bg-background-dark flex flex-col gap-3 z-10">

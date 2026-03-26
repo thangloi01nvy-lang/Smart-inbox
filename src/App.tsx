@@ -196,12 +196,21 @@ export default function App() {
         const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()));
         if (student) {
           const newTrend = [...(student.trend || []), sAnalysis.currentScore].slice(-5);
+          
+          const newComment = { date, text: sAnalysis.comment };
+          const updatedComments = [...(student.comments || [])];
+          if (student.lastComment && updatedComments.length === 0) {
+            updatedComments.push({ date: student.lastAnalysisDate || new Date(0).toISOString(), text: student.lastComment });
+          }
+          updatedComments.push(newComment);
+
           await setDoc(doc(db, 'students', student.id), {
             ...student,
             currentScore: sAnalysis.currentScore,
             targetScore: sAnalysis.targetScore,
             estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
             lastComment: sAnalysis.comment,
+            comments: updatedComments,
             dataPoints: (student.dataPoints || 0) + 1,
             trend: newTrend,
             lastAnalysisDate: date

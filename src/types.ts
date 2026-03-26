@@ -11,6 +11,7 @@ export interface Student {
   dataPoints?: number; // For UI
   status?: 'READY' | 'PENDING'; // For UI
   trend?: number[]; // For UI
+  comments?: { date: string; text: string }[];
 }
 
 export interface Class {

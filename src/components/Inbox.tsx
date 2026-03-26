@@ -68,37 +68,50 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
   const processMediaBlob = async (blob: Blob, mimeType: string) => {
     setIsProcessing(true);
     try {
-      // 1. Upload to Firebase Storage
-      let audioUrl = '';
-      let storagePath = '';
+      // Prepare Firebase Storage upload promise
+      let uploadPromise = Promise.resolve({ audioUrl: '', storagePath: '' });
       if (auth.currentUser) {
         const fileId = Date.now().toString();
-        storagePath = `recordings/${auth.currentUser.uid}/${fileId}`;
-        const storageRef = ref(storage, storagePath);
-        const uploadResult = await uploadBytes(storageRef, blob);
-        audioUrl = await getDownloadURL(uploadResult.ref);
+        const path = `recordings/${auth.currentUser.uid}/${fileId}`;
+        const storageRef = ref(storage, path);
+        uploadPromise = uploadBytes(storageRef, blob).then(async (uploadResult) => {
+          const url = await getDownloadURL(uploadResult.ref);
+          return { audioUrl: url, storagePath: path };
+        });
       }
 
-      // 2. Analyze with Gemini
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
-      reader.onloadend = async () => {
-        const base64data = (reader.result as string).split(',')[1];
-        try {
-          const result = await analyzeMedia(base64data, mimeType, selectedClass);
-          if (onAnalysisComplete) {
-            onAnalysisComplete({ ...result, audioUrl, storagePath, className: selectedClass });
+      // Prepare Gemini analysis promise
+      const analysisPromise = new Promise<AnalysisResult>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          try {
+            const base64data = (reader.result as string).split(',')[1];
+            const result = await analyzeMedia(base64data, mimeType, selectedClass);
+            resolve(result);
+          } catch (error) {
+            reject(error);
           }
-          setIsProcessing(false);
-          onNavigate('ANALYSIS_DETAIL');
-        } catch (error) {
-          console.error("Error analyzing media:", error);
-          alert("Failed to analyze media with Gemini.");
-          setIsProcessing(false);
-        }
-      };
+        };
+        reader.onerror = reject;
+      });
+
+      // Run both in parallel
+      const [uploadData, analysisResult] = await Promise.all([uploadPromise, analysisPromise]);
+
+      if (onAnalysisComplete) {
+        onAnalysisComplete({ 
+          ...analysisResult, 
+          audioUrl: uploadData.audioUrl, 
+          storagePath: uploadData.storagePath, 
+          className: selectedClass 
+        });
+      }
+      setIsProcessing(false);
+      onNavigate('ANALYSIS_DETAIL');
     } catch (error) {
-      console.error("Error processing blob:", error);
+      console.error("Error processing media:", error);
+      alert("Failed to process media. Please try again.");
       setIsProcessing(false);
     }
   };
