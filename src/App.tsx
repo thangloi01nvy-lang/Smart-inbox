@@ -17,10 +17,8 @@ import { auth, db, storage } from './firebase';
 import { ref, deleteObject } from 'firebase/storage';
 import { 
   onAuthStateChanged, 
-  signInWithPopup, 
-  signInWithRedirect,
-  getRedirectResult,
-  GoogleAuthProvider, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   User
 } from 'firebase/auth';
@@ -51,6 +49,11 @@ export default function App() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
+  // Auth state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+
   // Test connection to Firestore
   useEffect(() => {
     async function testConnection() {
@@ -70,11 +73,6 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setIsAuthReady(true);
-    });
-
-    // Handle redirect result for mobile browsers (Safari)
-    getRedirectResult(auth).catch((error) => {
-      console.error("Redirect Login Error:", error);
     });
 
     return () => unsubscribe();
@@ -118,58 +116,41 @@ export default function App() {
     };
   }, [user]);
 
-  const handleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const isInIframe = window.self !== window.top;
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setAuthError('');
+    
+    if (!email || !password) {
+      setAuthError('Vui lòng nhập tài khoản và mật khẩu');
+      return;
+    }
+
+    // Auto-append domain if it's just a username like "admin"
+    const loginEmail = email.includes('@') ? email : `${email}@example.com`;
 
     try {
-      // For mobile devices, always prefer redirect as popups are unreliable
-      if (isMobile) {
-        if (isInIframe) {
-          const confirmRedirect = window.confirm("Trình duyệt trên di động thường chặn đăng nhập khi chạy trong khung (iframe). Bạn có muốn thử đăng nhập bằng cách chuyển hướng không? Nếu không thành công, hãy mở ứng dụng trong tab mới.");
-          if (confirmRedirect) {
-            await signInWithRedirect(auth, provider);
-          }
-        } else {
-          await signInWithRedirect(auth, provider);
-        }
-        return;
-      }
-
-      // Try popup first for desktop/other browsers
-      await signInWithPopup(auth, provider);
+      await signInWithEmailAndPassword(auth, loginEmail, password);
     } catch (error: any) {
-      console.error("Login Error (Initial):", error);
+      console.error("Login Error:", error);
       
-      // Fallback to redirect for any popup-related failure
-      const isPopupError = [
-        'auth/popup-blocked',
-        'auth/cancelled-popup-request',
-        'auth/popup-closed-by-user',
-        'auth/internal-error'
-      ].includes(error.code);
-
-      if (isPopupError) {
+      // If user not found, let's try to create it automatically to make testing easy
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         try {
-          await signInWithRedirect(auth, provider);
-        } catch (redirectError: any) {
-          console.error("Login Error (Redirect):", redirectError);
-          if (redirectError.code === 'auth/unauthorized-domain') {
-            // In an iframe, window.location.hostname might be the iframe's internal host, not the one Firebase sees
-            // We should show both the current hostname and the one from the error message if possible
-            alert(`Lỗi tên miền chưa được cấp quyền.\n\nFirebase đang chặn yêu cầu từ tên miền này. Vui lòng đảm bảo bạn đã thêm:\n\n${window.location.hostname}\n\nvào mục Authorized Domains trong Firebase Console.`);
+          await createUserWithEmailAndPassword(auth, loginEmail, password);
+        } catch (createError: any) {
+          console.error("Create User Error:", createError);
+          if (createError.code === 'auth/email-already-in-use') {
+            setAuthError('Sai mật khẩu.');
+          } else if (createError.code === 'auth/operation-not-allowed') {
+            setAuthError('Tính năng Đăng nhập bằng Email/Mật khẩu chưa được bật. Vui lòng vào Firebase Console -> Authentication -> Sign-in method và bật Email/Password.');
           } else {
-            alert("Đăng nhập bị chặn bởi trình duyệt. Vui lòng mở ứng dụng trong tab mới hoặc tắt chặn popup trong cài đặt Safari.");
+            setAuthError('Lỗi: ' + createError.message);
           }
         }
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setAuthError('Tính năng Đăng nhập bằng Email/Mật khẩu chưa được bật. Vui lòng vào Firebase Console -> Authentication -> Sign-in method và bật Email/Password.');
       } else {
-        if (error.code === 'auth/unauthorized-domain') {
-          alert(`Lỗi tên miền chưa được cấp quyền.\n\nFirebase đang chặn yêu cầu từ tên miền này. Vui lòng đảm bảo bạn đã thêm:\n\n${window.location.hostname}\n\nvào mục Authorized Domains trong Firebase Console.`);
-        } else {
-          alert("Lỗi đăng nhập: " + error.message);
-        }
+        setAuthError('Lỗi đăng nhập: ' + error.message);
       }
     }
   };
@@ -307,13 +288,43 @@ export default function App() {
           <h1 className="text-4xl font-black mb-2 tracking-tighter italic">TOILET_AI</h1>
           <p className="text-text-muted mb-8 text-sm">TEACHER_OBSERVATION_&_INTELLIGENT_LEARNING_ENHANCEMENT_TOOL</p>
           
-          <button 
-            onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-3 bg-primary text-white p-4 font-bold hover:bg-opacity-90 transition-all border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px]"
-          >
-            <LogIn size={20} />
-            SIGN_IN_WITH_GOOGLE
-          </button>
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div>
+              <label className="block text-xs font-bold mb-1 uppercase tracking-widest text-text-muted">Tài khoản (VD: admin)</label>
+              <input 
+                type="text" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-background-dark border-2 border-border-harsh p-3 text-white focus:outline-none focus:border-primary transition-colors"
+                placeholder="Nhập tài khoản hoặc email..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-xs font-bold mb-1 uppercase tracking-widest text-text-muted">Mật khẩu</label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-background-dark border-2 border-border-harsh p-3 text-white focus:outline-none focus:border-primary transition-colors"
+                placeholder="Nhập mật khẩu..."
+              />
+            </div>
+
+            {authError && (
+              <div className="text-destructive text-xs font-bold bg-destructive/10 p-2 border border-destructive/30">
+                {authError}
+              </div>
+            )}
+            
+            <button 
+              type="submit"
+              className="w-full flex items-center justify-center gap-3 bg-primary text-white p-4 font-bold hover:bg-opacity-90 transition-all border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] mt-2"
+            >
+              <LogIn size={20} />
+              ĐĂNG NHẬP
+            </button>
+          </form>
           
           <p className="mt-6 text-[10px] text-text-muted text-center uppercase tracking-widest leading-relaxed">
             SECURE_CLOUD_SYNC_ENABLED <br/>
