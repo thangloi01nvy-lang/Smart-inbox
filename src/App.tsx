@@ -317,6 +317,9 @@ export default function App() {
     if (!user) return;
     
     try {
+      // Find the report to get its date and students
+      const reportToDelete = reports.find(r => r.id === reportId);
+      
       // Delete from Firestore
       await deleteDoc(doc(db, 'analysisResults', reportId));
       
@@ -324,6 +327,24 @@ export default function App() {
       if (storagePath) {
         const fileRef = ref(storage, storagePath);
         await deleteObject(fileRef).catch(err => console.error("Error deleting file from storage:", err));
+      }
+      
+      // Remove corresponding comments from students
+      if (reportToDelete) {
+        for (const sAnalysis of reportToDelete.students) {
+          // Find the student by name matching
+          const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()) || sAnalysis.name.toLowerCase().includes(s.name.toLowerCase()));
+          if (student && student.comments) {
+            // Filter out the comment that matches the report's date
+            const updatedComments = student.comments.filter(c => c.date !== reportToDelete.date);
+            
+            await setDoc(doc(db, 'students', student.id), {
+              ...student,
+              comments: updatedComments,
+              dataPoints: Math.max(0, (student.dataPoints || 1) - 1)
+            }, { merge: true });
+          }
+        }
       }
       
       if (currentScreen === 'ANALYSIS_DETAIL' && analysisResult?.id === reportId) {
@@ -459,7 +480,7 @@ export default function App() {
         )}
         {currentScreen === 'REPORT_GEN' && <ReportGen onNavigate={navigate} />}
         {currentScreen === 'ANALYSIS_DETAIL' && <AnalysisDetail onNavigate={navigate} analysisResult={analysisResult} />}
-        {currentScreen === 'REPORTS' && <Reports onNavigate={navigate} reports={reports} onSelectReport={handleSelectReport} onDeleteReport={handleDeleteReport} />}
+        {currentScreen === 'REPORTS' && <Reports onNavigate={navigate} reports={reports} classes={classes} students={students} onSelectReport={handleSelectReport} onDeleteReport={handleDeleteReport} />}
         {!['INBOX', 'ROSTER', 'EDIT_CLASS', 'EDIT_STUDENT', 'REPORT_GEN', 'ANALYSIS_DETAIL', 'REPORTS'].includes(currentScreen) && (
           <div className="p-10 text-center">
             <p>Screen not found: {currentScreen}</p>
