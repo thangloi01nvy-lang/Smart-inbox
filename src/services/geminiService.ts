@@ -6,10 +6,10 @@ let aiInstance: GoogleGenAI | null = null;
 const getAiClient = () => {
   if (aiInstance) return aiInstance;
 
-  const key = (import.meta as any).env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : '');
+  const key = process.env.GEMINI_API_KEY;
   
   if (!key) {
-    throw new Error("Mã API Gemini chưa được cấu hình. Vui lòng thêm VITE_GEMINI_API_KEY vào biến môi trường trong Vercel.");
+    throw new Error("Mã API Gemini chưa được cấu hình.");
   }
 
   aiInstance = new GoogleGenAI({ apiKey: key });

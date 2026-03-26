@@ -104,7 +104,7 @@ service cloud.firestore {
     }
 
     function isValidStudent(data) {
-      return data.keys().hasOnly(['id', 'name', 'classId', 'currentScore', 'targetScore', 'estimatedDaysToTarget', 'lastComment', 'teacherUid']) &&
+      return data.keys().hasOnly(['id', 'name', 'classId', 'currentScore', 'targetScore', 'estimatedDaysToTarget', 'lastComment', 'teacherUid', 'dataPoints', 'status', 'trend', 'lastAnalysisDate']) &&
              data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.classId is string && data.classId.size() > 0 &&
@@ -112,11 +112,15 @@ service cloud.firestore {
              (!('targetScore' in data) || data.targetScore is number) &&
              (!('estimatedDaysToTarget' in data) || data.estimatedDaysToTarget is number) &&
              (!('lastComment' in data) || data.lastComment is string) &&
+             (!('dataPoints' in data) || data.dataPoints is number) &&
+             (!('status' in data) || data.status is string) &&
+             (!('trend' in data) || data.trend is list) &&
+             (!('lastAnalysisDate' in data) || data.lastAnalysisDate is string) &&
              data.teacherUid is string && data.teacherUid == request.auth.uid;
     }
 
     function isValidAnalysisResult(data) {
-      return data.keys().hasOnly(['id', 'date', 'classId', 'className', 'transcript', 'summary', 'audioUrl', 'teacherUid', 'students']) &&
+      return data.keys().hasOnly(['id', 'date', 'classId', 'className', 'transcript', 'summary', 'audioUrl', 'teacherUid', 'students', 'storagePath']) &&
              data.id is string && data.id.size() > 0 &&
              data.date is string && isValidDateString(data.date) &&
              data.classId is string && data.classId.size() > 0 &&
@@ -124,6 +128,7 @@ service cloud.firestore {
              data.transcript is string &&
              data.summary is string &&
              (!('audioUrl' in data) || isValidUrl(data.audioUrl)) &&
+             (!('storagePath' in data) || data.storagePath is string) &&
              data.teacherUid is string && data.teacherUid == request.auth.uid &&
              (!('students' in data) || data.students is list);
     }

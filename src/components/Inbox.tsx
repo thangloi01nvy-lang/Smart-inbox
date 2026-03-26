@@ -87,7 +87,7 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
         try {
           const result = await analyzeMedia(base64data, mimeType, selectedClass);
           if (onAnalysisComplete) {
-            onAnalysisComplete({ ...result, audioUrl, storagePath });
+            onAnalysisComplete({ ...result, audioUrl, storagePath, className: selectedClass });
           }
           setIsProcessing(false);
           onNavigate('ANALYSIS_DETAIL');
@@ -160,7 +160,7 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
     try {
       const result = await analyzeText(noteText, selectedClass);
       if (onAnalysisComplete) {
-        onAnalysisComplete(result);
+        onAnalysisComplete({ ...result, className: selectedClass });
       }
       setIsProcessing(false);
       onNavigate('ANALYSIS_DETAIL');

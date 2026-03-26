@@ -16,14 +16,22 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
   const [status, setStatus] = useState<'READY' | 'PENDING'>(studentToEdit?.status || 'PENDING');
   
   // Find which class the student is currently in
-  const currentClass = classes.find(c => c.studentIds.includes(studentToEdit?.id || ''));
+  const currentClass = classes.find(c => c.id === studentToEdit?.classId);
   const [classId, setClassId] = useState(currentClass?.id || 'unassigned');
 
   const handleSave = () => {
     if (!name.trim() || !id.trim()) return;
     
+    // Sanitize ID to prevent invalid Firestore paths (e.g. slashes)
+    const sanitizedId = id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    
+    if (!sanitizedId) {
+      alert("ID học sinh không hợp lệ. Vui lòng chỉ sử dụng chữ cái, số, gạch ngang và gạch dưới.");
+      return;
+    }
+
     onSave({
-      id: id.trim().toUpperCase(),
+      id: sanitizedId,
       name: name.trim().toUpperCase(),
       dataPoints: studentToEdit?.dataPoints || 0,
       status: status,

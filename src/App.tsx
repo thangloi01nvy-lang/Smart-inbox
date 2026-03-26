@@ -195,12 +195,16 @@ export default function App() {
       for (const sAnalysis of result.students) {
         const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()));
         if (student) {
+          const newTrend = [...(student.trend || []), sAnalysis.currentScore].slice(-5);
           await setDoc(doc(db, 'students', student.id), {
             ...student,
             currentScore: sAnalysis.currentScore,
             targetScore: sAnalysis.targetScore,
             estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
-            lastComment: sAnalysis.comment
+            lastComment: sAnalysis.comment,
+            dataPoints: (student.dataPoints || 0) + 1,
+            trend: newTrend,
+            lastAnalysisDate: date
           });
         }
       }
@@ -234,8 +238,9 @@ export default function App() {
         teacherUid: user.uid
       });
       setCurrentScreen('ROSTER');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving class:", error);
+      alert("Lỗi khi lưu lớp học: " + error.message);
     }
   };
 
@@ -244,12 +249,13 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'classes', id));
       setCurrentScreen('ROSTER');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting class:", error);
+      alert("Lỗi khi xóa lớp học: " + error.message);
     }
   };
 
-  const handleSaveStudent = async (updatedStudent: Student, newClassId: string) => {
+  const handleSaveStudent = async (updatedStudent: Student, newClassId: string, navigateBack: boolean = true) => {
     if (!user) return;
     try {
       await setDoc(doc(db, 'students', updatedStudent.id), {
@@ -257,9 +263,12 @@ export default function App() {
         classId: newClassId,
         teacherUid: user.uid
       });
-      setCurrentScreen('ROSTER');
-    } catch (error) {
+      if (navigateBack) {
+        setCurrentScreen('ROSTER');
+      }
+    } catch (error: any) {
       console.error("Error saving student:", error);
+      alert("Lỗi khi lưu học sinh: " + error.message);
     }
   };
 
@@ -268,8 +277,9 @@ export default function App() {
     try {
       await deleteDoc(doc(db, 'students', id));
       setCurrentScreen('ROSTER');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error archiving student:", error);
+      alert("Lỗi khi xóa học sinh: " + error.message);
     }
   };
 
