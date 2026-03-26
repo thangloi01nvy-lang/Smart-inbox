@@ -125,13 +125,10 @@ export default function App() {
     const isInIframe = window.self !== window.top;
 
     try {
-      // On mobile Safari, popups are almost always blocked or problematic
-      // Especially if we are in an iframe
-      if (isMobile && isSafari) {
+      // For mobile devices, always prefer redirect as popups are unreliable
+      if (isMobile) {
         if (isInIframe) {
-          // In an iframe on mobile Safari, redirect often fails or is blocked
-          // Suggest opening in a new tab
-          const confirmRedirect = window.confirm("Trình duyệt Safari trên di động thường chặn đăng nhập khi chạy trong khung (iframe). Bạn có muốn thử đăng nhập bằng cách chuyển hướng không? Nếu không thành công, hãy mở ứng dụng trong tab mới.");
+          const confirmRedirect = window.confirm("Trình duyệt trên di động thường chặn đăng nhập khi chạy trong khung (iframe). Bạn có muốn thử đăng nhập bằng cách chuyển hướng không? Nếu không thành công, hãy mở ứng dụng trong tab mới.");
           if (confirmRedirect) {
             await signInWithRedirect(auth, provider);
           }
@@ -157,12 +154,22 @@ export default function App() {
       if (isPopupError) {
         try {
           await signInWithRedirect(auth, provider);
-        } catch (redirectError) {
+        } catch (redirectError: any) {
           console.error("Login Error (Redirect):", redirectError);
-          alert("Đăng nhập bị chặn bởi trình duyệt. Vui lòng mở ứng dụng trong tab mới hoặc tắt chặn popup trong cài đặt Safari.");
+          if (redirectError.code === 'auth/unauthorized-domain') {
+            // In an iframe, window.location.hostname might be the iframe's internal host, not the one Firebase sees
+            // We should show both the current hostname and the one from the error message if possible
+            alert(`Lỗi tên miền chưa được cấp quyền.\n\nFirebase đang chặn yêu cầu từ tên miền này. Vui lòng đảm bảo bạn đã thêm:\n\n${window.location.hostname}\n\nvào mục Authorized Domains trong Firebase Console.`);
+          } else {
+            alert("Đăng nhập bị chặn bởi trình duyệt. Vui lòng mở ứng dụng trong tab mới hoặc tắt chặn popup trong cài đặt Safari.");
+          }
         }
       } else {
-        alert("Lỗi đăng nhập: " + error.message);
+        if (error.code === 'auth/unauthorized-domain') {
+          alert(`Lỗi tên miền chưa được cấp quyền.\n\nFirebase đang chặn yêu cầu từ tên miền này. Vui lòng đảm bảo bạn đã thêm:\n\n${window.location.hostname}\n\nvào mục Authorized Domains trong Firebase Console.`);
+        } else {
+          alert("Lỗi đăng nhập: " + error.message);
+        }
       }
     }
   };
