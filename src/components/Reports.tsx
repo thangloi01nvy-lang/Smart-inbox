@@ -1,8 +1,8 @@
 import React from 'react';
-import { ArrowLeft, FileText, Calendar, Users, ChevronRight } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar, Users, ChevronRight, Trash2 } from 'lucide-react';
 import { AnalysisResult } from '../types';
 
-export function Reports({ onNavigate, reports, onSelectReport }: { onNavigate: (s: string) => void, reports: AnalysisResult[], onSelectReport: (report: AnalysisResult) => void }) {
+export function Reports({ onNavigate, reports, onSelectReport, onDeleteReport }: { onNavigate: (s: string) => void, reports: AnalysisResult[], onSelectReport: (report: AnalysisResult) => void, onDeleteReport?: (id: string, storagePath?: string) => void }) {
   return (
     <div className="flex flex-col h-full w-full font-display pb-32 bg-background-dark min-h-screen">
       {/* Top Navigation */}
@@ -28,11 +28,13 @@ export function Reports({ onNavigate, reports, onSelectReport }: { onNavigate: (
           reports.map((report) => (
             <article 
               key={report.id}
-              onClick={() => onSelectReport(report)}
-              className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 cursor-pointer hover:border-primary group transition-colors"
+              className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 hover:border-primary group transition-colors"
             >
               <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4 flex-1">
+                <div 
+                  className="flex items-start gap-4 flex-1 cursor-pointer"
+                  onClick={() => onSelectReport(report)}
+                >
                   {/* Icon */}
                   <div className="text-primary flex items-center justify-center border-2 border-border-harsh shrink-0 w-[48px] h-[48px] bg-background-dark rounded-sm group-hover:border-primary transition-colors">
                     <FileText size={24} />
@@ -54,7 +56,21 @@ export function Reports({ onNavigate, reports, onSelectReport }: { onNavigate: (
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="text-muted group-hover:text-primary transition-colors" />
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onDeleteReport && report.id) {
+                        onDeleteReport(report.id, report.storagePath);
+                      }
+                    }}
+                    className="p-2 text-muted hover:text-destructive hover:bg-destructive/10 rounded-sm transition-colors"
+                    title="Delete Report"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                  <ChevronRight className="text-muted group-hover:text-primary transition-colors cursor-pointer" onClick={() => onSelectReport(report)} />
+                </div>
               </div>
             </article>
           ))

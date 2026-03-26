@@ -185,12 +185,6 @@ export default function App() {
       await setDoc(doc(db, 'analysisResults', id), newReport);
       setAnalysisResult(newReport);
       
-      // Delete from Storage to save space (as requested by user)
-      if (result.storagePath) {
-        const fileRef = ref(storage, result.storagePath);
-        deleteObject(fileRef).catch(err => console.error("Error deleting file from storage:", err));
-      }
-      
       // Update students in Firestore
       for (const sAnalysis of result.students) {
         const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()));
@@ -292,6 +286,28 @@ export default function App() {
     }
   };
 
+  const handleDeleteReport = async (reportId: string, storagePath?: string) => {
+    if (!user) return;
+    
+    try {
+      // Delete from Firestore
+      await deleteDoc(doc(db, 'analysisResults', reportId));
+      
+      // Delete from Storage if it has a storagePath
+      if (storagePath) {
+        const fileRef = ref(storage, storagePath);
+        await deleteObject(fileRef).catch(err => console.error("Error deleting file from storage:", err));
+      }
+      
+      if (currentScreen === 'ANALYSIS_DETAIL' && analysisResult?.id === reportId) {
+        setCurrentScreen('INBOX');
+      }
+    } catch (error: any) {
+      console.error("Error deleting report:", error);
+      alert("Lỗi khi xóa báo cáo: " + error.message);
+    }
+  };
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background-dark text-white font-mono">
@@ -381,6 +397,9 @@ export default function App() {
             onNavigate={navigate} 
             onAnalysisComplete={handleAnalysisComplete} 
             classes={classes} 
+            reports={reports}
+            onDeleteReport={handleDeleteReport}
+            onSelectReport={handleSelectReport}
           />
         )}
         {currentScreen === 'ROSTER' && (
@@ -413,7 +432,7 @@ export default function App() {
         )}
         {currentScreen === 'REPORT_GEN' && <ReportGen onNavigate={navigate} />}
         {currentScreen === 'ANALYSIS_DETAIL' && <AnalysisDetail onNavigate={navigate} analysisResult={analysisResult} />}
-        {currentScreen === 'REPORTS' && <Reports onNavigate={navigate} reports={reports} onSelectReport={handleSelectReport} />}
+        {currentScreen === 'REPORTS' && <Reports onNavigate={navigate} reports={reports} onSelectReport={handleSelectReport} onDeleteReport={handleDeleteReport} />}
         {!['INBOX', 'ROSTER', 'EDIT_CLASS', 'EDIT_STUDENT', 'REPORT_GEN', 'ANALYSIS_DETAIL', 'REPORTS'].includes(currentScreen) && (
           <div className="p-10 text-center">
             <p>Screen not found: {currentScreen}</p>

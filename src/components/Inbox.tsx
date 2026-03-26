@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Camera, FileText, Plus, X, Upload, Square, Brain } from 'lucide-react';
+import { Mic, Camera, FileText, Plus, X, Upload, Square, Brain, Trash2 } from 'lucide-react';
 import { analyzeMedia, analyzeText, AnalysisResult } from '../services/geminiService';
 import { Class } from '../types';
 import { storage, auth } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
-export function Inbox({ onNavigate, onAnalysisComplete, classes }: { 
+export function Inbox({ onNavigate, onAnalysisComplete, classes, reports = [], onDeleteReport, onSelectReport }: { 
   onNavigate: (s: string) => void, 
   onAnalysisComplete?: (result: any) => void,
-  classes: Class[]
+  classes: Class[],
+  reports?: AnalysisResult[],
+  onDeleteReport?: (id: string, storagePath?: string) => void,
+  onSelectReport?: (report: AnalysisResult) => void
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -221,98 +224,89 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
 
       {/* Main Feed Content */}
       <main className="w-full max-w-2xl mx-auto p-4 flex flex-col gap-4">
-        {/* Processing Item */}
-        <article className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 cursor-pointer hover:border-muted active:bg-border-harsh">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4 flex-1">
-              {/* Icon */}
-              <div className="text-text-main flex items-center justify-center border-2 border-border-harsh shrink-0 w-[48px] h-[48px] bg-background-dark rounded-sm">
-                <Mic size={24} />
-              </div>
-              {/* Info */}
-              <div className="flex flex-col justify-center gap-1">
-                <h3 className="text-text-main text-base font-bold leading-none uppercase">AUDIO_REQ_095</h3>
-                <p className="text-muted text-[13px] font-medium leading-none uppercase">TODAY, 14:05 PM</p>
-                <p className="text-muted text-[13px] font-medium leading-none uppercase">DUR: 01:12:05 | SZE: 104MB</p>
+        {isProcessing && (
+          <article className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 cursor-pointer hover:border-muted active:bg-border-harsh">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-4 flex-1">
+                {/* Icon */}
+                <div className="text-text-main flex items-center justify-center border-2 border-border-harsh shrink-0 w-[48px] h-[48px] bg-background-dark rounded-sm">
+                  <Brain size={24} />
+                </div>
+                {/* Info */}
+                <div className="flex flex-col justify-center gap-1">
+                  <h3 className="text-text-main text-base font-bold leading-none uppercase">ANALYZING...</h3>
+                  <p className="text-muted text-[13px] font-medium leading-none uppercase">PLEASE WAIT</p>
+                </div>
               </div>
             </div>
-          </div>
-          {/* Status Pill */}
-          <div className="self-end px-2 py-1 border-2 border-primary text-primary text-[12px] font-bold uppercase rounded-sm flex items-center gap-2">
-            <span className="w-2 h-2 bg-primary rounded-none animate-none"></span>
-            PROCESSING...
-          </div>
-        </article>
+            {/* Status Pill */}
+            <div className="self-end px-2 py-1 border-2 border-primary text-primary text-[12px] font-bold uppercase rounded-sm flex items-center gap-2">
+              <span className="w-2 h-2 bg-primary rounded-none animate-pulse"></span>
+              PROCESSING...
+            </div>
+          </article>
+        )}
 
-        {/* Completed Item */}
-        <article 
-          onClick={() => onNavigate('ANALYSIS_DETAIL')}
-          className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 cursor-pointer hover:border-muted active:bg-border-harsh">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4 flex-1">
-              {/* Icon */}
-              <div className="text-text-main flex items-center justify-center border-2 border-border-harsh shrink-0 w-[48px] h-[48px] bg-background-dark rounded-sm">
-                <Camera size={24} />
-              </div>
-              {/* Info */}
-              <div className="flex flex-col justify-center gap-1">
-                <h3 className="text-text-main text-base font-bold leading-none uppercase">IMG_CAP_042</h3>
-                <p className="text-muted text-[13px] font-medium leading-none uppercase">TODAY, 11:30 AM</p>
-                <p className="text-muted text-[13px] font-medium leading-none uppercase">SZE: 4.2MB | TAG: WHITEBOARD</p>
-              </div>
-            </div>
+        {reports.length === 0 && !isProcessing ? (
+          <div className="flex flex-col items-center justify-center h-64 text-muted border-2 border-dashed border-border-harsh">
+            <FileText size={48} className="mb-4 opacity-50" />
+            <p className="font-bold uppercase tracking-widest">NO_REPORTS_FOUND</p>
+            <p className="text-xs mt-2">Create a new analysis to see it here.</p>
           </div>
-          {/* Status Pill */}
-          <div className="self-end px-2 py-1 border-2 border-accent text-accent text-[12px] font-bold uppercase rounded-sm">
-            ANALYZED
-          </div>
-        </article>
-
-        {/* Completed Item */}
-        <article 
-          onClick={() => onNavigate('ANALYSIS_DETAIL')}
-          className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 cursor-pointer hover:border-muted active:bg-border-harsh">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4 flex-1">
-              {/* Icon */}
-              <div className="text-text-main flex items-center justify-center border-2 border-border-harsh shrink-0 w-[48px] h-[48px] bg-background-dark rounded-sm">
-                <Mic size={24} />
+        ) : (
+          reports.map((report) => (
+            <article 
+              key={report.id}
+              className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 hover:border-primary group transition-colors"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div 
+                  className="flex items-start gap-4 flex-1 cursor-pointer"
+                  onClick={() => {
+                    if (onSelectReport) onSelectReport(report);
+                  }}
+                >
+                  {/* Icon */}
+                  <div className="text-primary flex items-center justify-center border-2 border-border-harsh shrink-0 w-[48px] h-[48px] bg-background-dark rounded-sm group-hover:border-primary transition-colors">
+                    <FileText size={24} />
+                  </div>
+                  {/* Info */}
+                  <div className="flex flex-col justify-center gap-1 flex-1">
+                    <h3 className="text-white text-base font-bold leading-none uppercase truncate">
+                      {report.summary.substring(0, 30)}...
+                    </h3>
+                    <div className="flex items-center gap-3 mt-1">
+                      <div className="flex items-center gap-1 text-muted text-[11px] font-medium uppercase">
+                        {report.date ? new Date(report.date).toLocaleDateString() : 'UNKNOWN_DATE'}
+                      </div>
+                      <div className="flex items-center gap-1 text-muted text-[11px] font-medium uppercase">
+                        {report.students.length} STUDENTS
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onDeleteReport && report.id) {
+                        onDeleteReport(report.id, report.storagePath);
+                      }
+                    }}
+                    className="p-2 text-muted hover:text-destructive hover:bg-destructive/10 rounded-sm transition-colors"
+                    title="Delete Report"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
-              {/* Info */}
-              <div className="flex flex-col justify-center gap-1">
-                <h3 className="text-text-main text-base font-bold leading-none uppercase">AUDIO_REQ_094</h3>
-                <p className="text-muted text-[13px] font-medium leading-none uppercase">OCT 24, 10:30 AM</p>
-                <p className="text-muted text-[13px] font-medium leading-none uppercase">DUR: 45:12 | SZE: 42MB</p>
+              {/* Status Pill */}
+              <div className="self-end px-2 py-1 border-2 border-accent text-accent text-[12px] font-bold uppercase rounded-sm">
+                ANALYZED
               </div>
-            </div>
-          </div>
-          {/* Status Pill */}
-          <div className="self-end px-2 py-1 border-2 border-accent text-accent text-[12px] font-bold uppercase rounded-sm">
-            ANALYZED
-          </div>
-        </article>
-
-        {/* Error Item */}
-        <article className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 cursor-pointer hover:border-muted active:bg-border-harsh opacity-75">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4 flex-1">
-              {/* Icon */}
-              <div className="text-muted flex items-center justify-center border-2 border-border-harsh shrink-0 w-[48px] h-[48px] bg-background-dark rounded-sm">
-                <FileText size={24} />
-              </div>
-              {/* Info */}
-              <div className="flex flex-col justify-center gap-1">
-                <h3 className="text-muted text-base font-bold leading-none uppercase line-through">TXT_NOTE_011</h3>
-                <p className="text-muted text-[13px] font-medium leading-none uppercase">OCT 23, 09:15 AM</p>
-                <p className="text-muted text-[13px] font-medium leading-none uppercase">SZE: 1KB</p>
-              </div>
-            </div>
-          </div>
-          {/* Status Pill */}
-          <div className="self-end px-2 py-1 border-2 border-red-600 text-red-600 text-[12px] font-bold uppercase rounded-sm">
-            [ERROR] UPLOAD FAILED
-          </div>
-        </article>
+            </article>
+          ))
+        )}
       </main>
 
       {/* Action Menu Overlay */}
