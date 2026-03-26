@@ -6,10 +6,22 @@ let aiInstance: GoogleGenAI | null = null;
 const getAiClient = () => {
   if (aiInstance) return aiInstance;
 
-  const key = process.env.GEMINI_API_KEY;
+  // @ts-ignore
+  let key = '';
+  try {
+    // @ts-ignore
+    key = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  } catch (e) {
+    // Ignore process is not defined
+  }
   
   if (!key) {
-    throw new Error("Mã API Gemini chưa được cấu hình.");
+    // @ts-ignore
+    key = import.meta.env.VITE_GEMINI_API_KEY || (typeof window !== 'undefined' && window.process?.env?.GEMINI_API_KEY) || (typeof window !== 'undefined' && window.process?.env?.API_KEY);
+  }
+  
+  if (!key) {
+    throw new Error("Mã API Gemini chưa được cấu hình. Vui lòng kiểm tra lại cấu hình API key.");
   }
 
   aiInstance = new GoogleGenAI({ apiKey: key });
