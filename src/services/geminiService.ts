@@ -51,6 +51,8 @@ export async function analyzeMedia(
     3. Estimate their current score (0-100), their target score (usually 100), and predict the number of days (estimatedDaysToTarget) they will need to reach their target based on current performance.
     4. Provide a full transcript of the audio, or a detailed description of the image content.
     5. Provide a short overall summary.
+    
+    IMPORTANT: You must return the result strictly as a JSON object matching the requested schema.
   `;
 
   const response = await ai.models.generateContent({
@@ -117,12 +119,27 @@ export async function analyzeMedia(
     },
   });
 
-  const text = response.text;
+  let text = "";
+  try {
+    text = response.text;
+  } catch (e: any) {
+    console.error("Error getting response text:", e);
+    throw new Error("Phản hồi từ AI bị chặn hoặc không có nội dung: " + e.message);
+  }
+
   if (!text) {
     throw new Error("No response from Gemini");
   }
 
-  return JSON.parse(text) as AnalysisResult;
+  // Remove markdown code blocks if present
+  text = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+  try {
+    return JSON.parse(text) as AnalysisResult;
+  } catch (e: any) {
+    console.error("Failed to parse JSON:", text);
+    throw new Error("Lỗi phân tích dữ liệu từ AI: " + e.message);
+  }
 }
 
 export async function analyzeText(
@@ -141,6 +158,8 @@ export async function analyzeText(
     3. Estimate their current score (0-100), their target score (usually 100), and predict the number of days (estimatedDaysToTarget) they will need to reach their target based on current performance.
     4. Provide the original text as the transcript.
     5. Provide a short overall summary.
+    
+    IMPORTANT: You must return the result strictly as a JSON object matching the requested schema.
     
     Teacher's Note:
     "${text}"
@@ -198,10 +217,25 @@ export async function analyzeText(
     },
   });
 
-  const responseText = response.text;
+  let responseText = "";
+  try {
+    responseText = response.text;
+  } catch (e: any) {
+    console.error("Error getting response text:", e);
+    throw new Error("Phản hồi từ AI bị chặn hoặc không có nội dung: " + e.message);
+  }
+
   if (!responseText) {
     throw new Error("No response from Gemini");
   }
 
-  return JSON.parse(responseText) as AnalysisResult;
+  // Remove markdown code blocks if present
+  responseText = responseText.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+  try {
+    return JSON.parse(responseText) as AnalysisResult;
+  } catch (e: any) {
+    console.error("Failed to parse JSON:", responseText);
+    throw new Error("Lỗi phân tích dữ liệu từ AI: " + e.message);
+  }
 }

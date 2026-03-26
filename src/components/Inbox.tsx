@@ -177,9 +177,9 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes }: {
       }
       setIsProcessing(false);
       onNavigate('ANALYSIS_DETAIL');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error analyzing text:", error);
-      alert("Failed to analyze text with Gemini.");
+      alert("Failed to analyze text with Gemini: " + (error.message || error));
       setIsProcessing(false);
     }
   };
