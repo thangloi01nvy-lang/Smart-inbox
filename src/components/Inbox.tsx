@@ -68,9 +68,63 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes, reports = [], o
     }
   };
 
-  const processMediaBlob = async (blob: Blob, mimeType: string) => {
+  const compressImage = async (file: Blob): Promise<Blob> => {
+    if (!file.type.startsWith('image/')) return file;
+    
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', 0.8);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  };
+
+  const processMediaBlob = async (rawBlob: Blob, rawMimeType: string) => {
     setIsProcessing(true);
     try {
+      // Compress image if it's an image
+      const blob = await compressImage(rawBlob);
+      const mimeType = blob.type || rawMimeType;
+
       // Prepare Firebase Storage upload promise
       let uploadPromise = Promise.resolve({ audioUrl: '', storagePath: '' });
       if (auth.currentUser) {

@@ -166,6 +166,30 @@ export default function App() {
     // Find class name
     const cls = classes.find(c => c.name === (result as any).contextClass) || classes[0];
     
+    // Aggregate students by matched student ID or name to prevent duplicates
+    const aggregatedStudentsMap = new Map<string, any>();
+    
+    result.students.forEach(sAnalysis => {
+      const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()));
+      const key = student ? student.id : sAnalysis.name.toLowerCase();
+      
+      if (aggregatedStudentsMap.has(key)) {
+        const existing = aggregatedStudentsMap.get(key);
+        existing.comment += "\n- " + sAnalysis.comment;
+        existing.currentScore = Math.round((existing.currentScore + sAnalysis.currentScore) / 2);
+        existing.targetScore = Math.max(existing.targetScore, sAnalysis.targetScore);
+        existing.estimatedDaysToTarget = Math.round((existing.estimatedDaysToTarget + sAnalysis.estimatedDaysToTarget) / 2);
+      } else {
+        aggregatedStudentsMap.set(key, { 
+          ...sAnalysis, 
+          comment: "- " + sAnalysis.comment,
+          matchedStudentId: student?.id 
+        });
+      }
+    });
+
+    const aggregatedStudents = Array.from(aggregatedStudentsMap.values());
+
     const newReport: AnalysisResult = {
       ...result,
       id,
@@ -173,8 +197,9 @@ export default function App() {
       classId: cls?.id || 'UNASSIGNED',
       className: cls?.name || 'UNASSIGNED',
       teacherUid: user.uid,
-      students: result.students.map(s => ({
-        ...s,
+      students: aggregatedStudents.map(s => ({
+        name: s.name,
+        comment: s.comment,
         currentScore: s.currentScore,
         targetScore: s.targetScore,
         estimatedDaysToTarget: s.estimatedDaysToTarget
@@ -186,29 +211,31 @@ export default function App() {
       setAnalysisResult(newReport);
       
       // Update students in Firestore
-      for (const sAnalysis of result.students) {
-        const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()));
-        if (student) {
-          const newTrend = [...(student.trend || []), sAnalysis.currentScore].slice(-5);
-          
-          const newComment = { date, text: sAnalysis.comment };
-          const updatedComments = [...(student.comments || [])];
-          if (student.lastComment && updatedComments.length === 0) {
-            updatedComments.push({ date: student.lastAnalysisDate || new Date(0).toISOString(), text: student.lastComment });
-          }
-          updatedComments.push(newComment);
+      for (const sAnalysis of aggregatedStudents) {
+        if (sAnalysis.matchedStudentId) {
+          const student = students.find(s => s.id === sAnalysis.matchedStudentId);
+          if (student) {
+            const newTrend = [...(student.trend || []), sAnalysis.currentScore].slice(-5);
+            
+            const newComment = { date, text: sAnalysis.comment };
+            const updatedComments = [...(student.comments || [])];
+            if (student.lastComment && updatedComments.length === 0) {
+              updatedComments.push({ date: student.lastAnalysisDate || new Date(0).toISOString(), text: student.lastComment });
+            }
+            updatedComments.push(newComment);
 
-          await setDoc(doc(db, 'students', student.id), {
-            ...student,
-            currentScore: sAnalysis.currentScore,
-            targetScore: sAnalysis.targetScore,
-            estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
-            lastComment: sAnalysis.comment,
-            comments: updatedComments,
-            dataPoints: (student.dataPoints || 0) + 1,
-            trend: newTrend,
-            lastAnalysisDate: date
-          });
+            await setDoc(doc(db, 'students', student.id), {
+              ...student,
+              currentScore: sAnalysis.currentScore,
+              targetScore: sAnalysis.targetScore,
+              estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
+              lastComment: sAnalysis.comment,
+              comments: updatedComments,
+              dataPoints: (student.dataPoints || 0) + 1,
+              trend: newTrend,
+              lastAnalysisDate: date
+            });
+          }
         }
       }
     } catch (error) {
