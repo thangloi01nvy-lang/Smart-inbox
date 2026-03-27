@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, FileText, Calendar, Users, ChevronRight, Trash2, Filter, User } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar, Users, ChevronRight, Trash2, Filter, User, X } from 'lucide-react';
 import { AnalysisResult, Class, Student } from '../types';
 
 export function Reports({ 
@@ -19,6 +19,8 @@ export function Reports({
 }) {
   const [selectedClassId, setSelectedClassId] = useState<string>('ALL');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('ALL');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   const filteredStudents = useMemo(() => {
     if (selectedClassId === 'ALL') return students;
@@ -36,8 +38,18 @@ export function Reports({
         result = result.filter(r => r.students.some(s => s.name.toLowerCase().includes(student.name.toLowerCase()) || student.name.toLowerCase().includes(s.name.toLowerCase())));
       }
     }
+    if (startDate) {
+      const start = new Date(startDate).getTime();
+      result = result.filter(r => new Date(r.date).getTime() >= start);
+    }
+    if (endDate) {
+      // Set end date to the end of the selected day
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      result = result.filter(r => new Date(r.date).getTime() <= end.getTime());
+    }
     return result;
-  }, [reports, selectedClassId, selectedStudentId, students]);
+  }, [reports, selectedClassId, selectedStudentId, students, startDate, endDate]);
 
   return (
     <div className="flex flex-col h-full w-full font-display pb-32 bg-background-dark min-h-screen">
@@ -79,6 +91,35 @@ export function Reports({
             <option value="ALL">-- ALL STUDENTS --</option>
             {filteredStudents.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
+        </div>
+        <div className="flex gap-2 items-center">
+          <div className="flex-1 flex flex-col">
+            <label className="text-[10px] text-muted uppercase font-bold mb-1">START_DATE</label>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full bg-background-dark border-2 border-border-harsh text-white p-2 text-sm uppercase focus:border-primary focus:outline-none"
+            />
+          </div>
+          <div className="flex-1 flex flex-col">
+            <label className="text-[10px] text-muted uppercase font-bold mb-1">END_DATE</label>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full bg-background-dark border-2 border-border-harsh text-white p-2 text-sm uppercase focus:border-primary focus:outline-none"
+            />
+          </div>
+          {(startDate || endDate) && (
+            <button 
+              onClick={() => { setStartDate(''); setEndDate(''); }}
+              className="mt-5 p-2 bg-border-harsh text-white hover:bg-primary hover:text-black transition-colors"
+              title="Clear Dates"
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
       </div>
 

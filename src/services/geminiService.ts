@@ -154,6 +154,110 @@ export async function analyzeMedia(
   }
 }
 
+export async function generateUnifiedReport(
+  logs: any[],
+  studentName: string
+): Promise<AnalysisResult> {
+  const ai = getAiClient();
+  
+  // Format logs for the prompt
+  const formattedLogs = logs.map(log => {
+    return `Date: ${new Date(log.date).toLocaleDateString()}
+Type: ${log.type}
+Content: ${log.content || (log.type === 'image' ? 'Image uploaded' : 'Audio uploaded')}
+`;
+  }).join('\n---\n');
+
+  const prompt = `
+    You are an AI assistant for a teacher. Generate a unified monthly summary report for a student named "${studentName}".
+    
+    Here are the logs/notes collected for this student over the month:
+    ---
+    ${formattedLogs}
+    ---
+    
+    Tasks:
+    1. Provide a comprehensive, constructive comment summarizing their overall performance, progress, strengths, and areas for improvement based on ALL the logs.
+    2. Estimate their current overall score (0-100), their target score (usually 100), and predict the number of days (estimatedDaysToTarget) they will need to reach their target based on their progress.
+    3. Provide a short overall summary of the month.
+    
+    IMPORTANT: You must return the result strictly as a JSON object matching the requested schema.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          students: {
+            type: Type.ARRAY,
+            description: "List containing exactly ONE object for the requested student",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: {
+                  type: Type.STRING,
+                  description: "Name of the student",
+                },
+                comment: {
+                  type: Type.STRING,
+                  description: "Comprehensive monthly feedback for the student",
+                },
+                currentScore: {
+                  type: Type.INTEGER,
+                  description: "Estimated current score (0-100)",
+                },
+                targetScore: {
+                  type: Type.INTEGER,
+                  description: "Target score (usually 100)",
+                },
+                estimatedDaysToTarget: {
+                  type: Type.INTEGER,
+                  description: "Predicted number of days to reach the target score",
+                },
+              },
+              required: ["name", "comment", "currentScore", "targetScore", "estimatedDaysToTarget"],
+            },
+          },
+          transcript: {
+            type: Type.STRING,
+            description: "Leave empty or put 'Monthly Summary'",
+          },
+          summary: {
+            type: Type.STRING,
+            description: "Short overall summary of the month",
+          },
+        },
+        required: ["students", "transcript", "summary"],
+      },
+    },
+  });
+
+  let responseText = "";
+  try {
+    responseText = response.text;
+  } catch (e: any) {
+    console.error("Error getting response text:", e);
+    throw new Error("Phản hồi từ AI bị chặn hoặc không có nội dung: " + e.message);
+  }
+
+  if (!responseText) {
+    throw new Error("No response from Gemini");
+  }
+
+  responseText = responseText.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+  try {
+    return JSON.parse(responseText) as AnalysisResult;
+  } catch (e: any) {
+    console.error("Failed to parse JSON:", responseText);
+    throw new Error("Lỗi phân tích dữ liệu từ AI: " + e.message);
+  }
+}
+
 export async function analyzeText(
   text: string,
   contextClass: string

@@ -1,7 +1,115 @@
-import React from 'react';
-import { ArrowLeft, Send } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import { db, auth } from '../firebase';
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { generateUnifiedReport } from '../services/geminiService';
+import { AnalysisResult, Class, Student } from '../types';
 
-export function ReportGen({ onNavigate }: { onNavigate: (s: string) => void }) {
+export function ReportGen({ 
+  onNavigate,
+  classes,
+  students
+}: { 
+  onNavigate: (s: string) => void,
+  classes: Class[],
+  students: Student[]
+}) {
+  const [selectedClass, setSelectedClass] = useState<string>(classes[0]?.id || '');
+  const [selectedStudent, setSelectedStudent] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string>('AWAITING COMMAND');
+  const [generatedReport, setGeneratedReport] = useState<any>(null);
+
+  const classStudents = useMemo(() => {
+    return students.filter(s => s.classId === selectedClass);
+  }, [students, selectedClass]);
+
+  useEffect(() => {
+    if (classStudents.length > 0) {
+      setSelectedStudent(classStudents[0].id);
+    } else {
+      setSelectedStudent('');
+    }
+  }, [classStudents]);
+
+  const handleGenerate = async () => {
+    if (!selectedClass || !selectedStudent || !selectedMonth) {
+      alert("Please select class, student, and month.");
+      return;
+    }
+
+    const teacherUid = auth.currentUser?.uid;
+    if (!teacherUid) {
+      alert("You must be logged in.");
+      return;
+    }
+
+    setIsGenerating(true);
+    setStatusMessage('FETCHING LOGS...');
+    setGeneratedReport(null);
+
+    try {
+      // 1. Fetch logs for the selected student and month
+      const logsRef = collection(db, 'logs');
+      const [year, month] = selectedMonth.split('-');
+      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1).toISOString();
+      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59).toISOString();
+
+      const q = query(
+        logsRef,
+        where('teacherUid', '==', teacherUid),
+        where('studentId', '==', selectedStudent),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const logs = querySnapshot.docs.map(doc => doc.data());
+
+      if (logs.length === 0) {
+        setStatusMessage('NO LOGS FOUND FOR THIS PERIOD');
+        setIsGenerating(false);
+        return;
+      }
+
+      setStatusMessage(`FOUND ${logs.length} LOGS. GENERATING REPORT...`);
+
+      // 2. Send to Gemini
+      const studentName = students.find(s => s.id === selectedStudent)?.name || 'Unknown Student';
+      const reportData = await generateUnifiedReport(logs, studentName);
+
+      setStatusMessage('REPORT GENERATED. SAVING...');
+
+      // 3. Save the report to Firestore
+      const reportsRef = collection(db, 'reports');
+      const newReport = {
+        date: new Date().toISOString(),
+        teacherUid,
+        classId: selectedClass,
+        transcript: reportData.transcript || 'Monthly Summary',
+        summary: reportData.summary || 'Monthly Summary',
+        students: reportData.students,
+        type: 'monthly_summary'
+      };
+
+      await addDoc(reportsRef, newReport);
+
+      setGeneratedReport(newReport);
+      setStatusMessage('REPORT SAVED SUCCESSFULLY.');
+
+    } catch (error: any) {
+      console.error("Error generating report:", error);
+      setStatusMessage('ERROR: ' + error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const studentName = students.find(s => s.id === selectedStudent)?.name || 'Unknown';
+  const className = classes.find(c => c.id === selectedClass)?.name || 'Unknown';
+
   return (
     <div className="flex flex-col items-center h-full w-full font-display pb-24">
       {/* App Header */}
@@ -19,118 +127,130 @@ export function ReportGen({ onNavigate }: { onNavigate: (s: string) => void }) {
 
       {/* Main Content Area */}
       <main className="w-full max-w-md px-4 mt-6 flex-1 flex flex-col gap-6 print-container">
+        
+        {/* Configuration Panel */}
+        <div className="bg-surface border-2 border-border-harsh p-4 flex flex-col gap-4 no-print">
+          <div>
+            <label className="text-xs font-bold text-muted uppercase tracking-widest mb-1 block">CLASS:</label>
+            <select 
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="w-full bg-black border-2 border-border-harsh text-white p-3 text-sm font-bold uppercase appearance-none focus:border-primary focus:outline-none cursor-pointer"
+            >
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              {classes.length === 0 && <option value="">NO_CLASSES_FOUND</option>}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-muted uppercase tracking-widest mb-1 block">STUDENT:</label>
+            <select 
+              value={selectedStudent}
+              onChange={(e) => setSelectedStudent(e.target.value)}
+              className="w-full bg-black border-2 border-border-harsh text-white p-3 text-sm font-bold uppercase appearance-none focus:border-primary focus:outline-none cursor-pointer"
+            >
+              {classStudents.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+              {classStudents.length === 0 && <option value="">NO_STUDENTS_FOUND</option>}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-muted uppercase tracking-widest mb-1 block">MONTH:</label>
+            <input 
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full bg-black border-2 border-border-harsh text-white p-3 text-sm font-bold uppercase focus:border-primary focus:outline-none"
+            />
+          </div>
+          <button 
+            onClick={handleGenerate}
+            disabled={isGenerating || !selectedStudent}
+            className="w-full bg-primary text-black font-bold uppercase tracking-widest text-sm py-3 px-4 flex items-center justify-center gap-2 hover:bg-white active:bg-primary border-2 border-primary disabled:opacity-50 disabled:cursor-not-allowed mt-2">
+            {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
+            <span>{isGenerating ? 'GENERATING...' : 'GENERATE REPORT'}</span>
+          </button>
+        </div>
+
         {/* Instructions / Status (No Print) */}
         <div className="bg-surface border-2 border-border-harsh p-3 no-print">
           <p className="text-muted text-xs uppercase font-bold tracking-wider mb-1">SYSTEM STATUS</p>
-          <p className="text-accent text-sm uppercase font-mono">&gt; REPORT COMPILED. READY FOR DISPATCH.</p>
+          <p className="text-accent text-sm uppercase font-mono">&gt; {statusMessage}</p>
         </div>
 
-        {/* Document Preview Canvas */}
-        <div className="bg-white text-black border-2 border-border-harsh w-full flex flex-col relative overflow-hidden">
-          {/* Document Header */}
-          <div className="p-5 border-b-2 border-black bg-white flex flex-col gap-2">
-            <h2 className="text-3xl font-bold uppercase tracking-tighter leading-none mb-2">MONTHLY<br/>PROGRESS</h2>
-            <div className="text-xs uppercase font-bold tracking-widest text-gray-500">
-              PERIOD: OCT 2023
+        {/* Generated Report Preview */}
+        {generatedReport && generatedReport.students && generatedReport.students[0] && (
+          <div className="bg-white text-black border-2 border-border-harsh w-full flex flex-col relative overflow-hidden">
+            {/* Document Header */}
+            <div className="p-5 border-b-2 border-black bg-white flex flex-col gap-2">
+              <h2 className="text-3xl font-bold uppercase tracking-tighter leading-none mb-2">MONTHLY<br/>PROGRESS</h2>
+              <div className="text-xs uppercase font-bold tracking-widest text-gray-500">
+                PERIOD: {selectedMonth}
+              </div>
             </div>
-          </div>
 
-          {/* Identification Block */}
-          <div className="grid grid-cols-2 border-b-2 border-black bg-white">
-            <div className="p-3 border-r-2 border-black flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">CLASS_ID</span>
-              <span className="font-bold uppercase text-sm truncate">ENG_101_ADV</span>
+            {/* Identification Block */}
+            <div className="grid grid-cols-2 border-b-2 border-black bg-white">
+              <div className="p-3 border-r-2 border-black flex flex-col gap-1">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">CLASS</span>
+                <span className="font-bold uppercase text-sm truncate">{className}</span>
+              </div>
+              <div className="p-3 flex flex-col gap-1">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">STUDENT</span>
+                <span className="font-bold uppercase text-sm truncate">{studentName}</span>
+              </div>
             </div>
-            <div className="p-3 flex flex-col gap-1">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">STUDENT_ID</span>
-              <span className="font-bold uppercase text-sm truncate">STU_042_CHEN</span>
-            </div>
-          </div>
 
-          {/* Visual Analytics */}
-          <div className="p-6 border-b-2 border-black bg-white flex flex-col items-center justify-center">
-            <h3 className="w-full text-left text-xs uppercase font-bold tracking-widest mb-6">COMPETENCY MATRIX</h3>
-            <div className="relative w-full aspect-square max-w-[240px]">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100">
-                <polygon fill="none" points="50,5 95,38 78,90 22,90 5,38" stroke="#e5e5e5" strokeWidth="1"></polygon>
-                <polygon fill="none" points="50,27.5 72.5,44 64,70 36,70 27.5,44" stroke="#e5e5e5" strokeWidth="1"></polygon>
-                <polygon fill="none" points="50,50 50,50 50,50 50,50 50,50" stroke="#e5e5e5" strokeWidth="1"></polygon>
-                <line stroke="#e5e5e5" strokeWidth="1" x1="50" x2="50" y1="50" y2="5"></line>
-                <line stroke="#e5e5e5" strokeWidth="1" x1="50" x2="95" y1="50" y2="38"></line>
-                <line stroke="#e5e5e5" strokeWidth="1" x1="50" x2="78" y1="50" y2="90"></line>
-                <line stroke="#e5e5e5" strokeWidth="1" x1="50" x2="22" y1="50" y2="90"></line>
-                <line stroke="#e5e5e5" strokeWidth="1" x1="50" x2="5" y1="50" y2="38"></line>
-                <polygon fill="rgba(249, 71, 6, 0.2)" points="50,15 85,38 68,80 32,70 15,45" stroke="#f94706" strokeWidth="2"></polygon>
-                <circle cx="50" cy="15" fill="#000" r="2"></circle>
-                <circle cx="85" cy="38" fill="#000" r="2"></circle>
-                <circle cx="68" cy="80" fill="#000" r="2"></circle>
-                <circle cx="32" cy="70" fill="#000" r="2"></circle>
-                <circle cx="15" cy="45" fill="#000" r="2"></circle>
-                <text fill="#000" fontFamily="monospace" fontSize="5" fontWeight="bold" textAnchor="middle" x="50" y="-2">GRAMMAR</text>
-                <text fill="#000" fontFamily="monospace" fontSize="5" fontWeight="bold" textAnchor="start" x="100" y="38">VOCAB</text>
-                <text fill="#000" fontFamily="monospace" fontSize="5" fontWeight="bold" textAnchor="middle" x="82" y="96">FLUENCY</text>
-                <text fill="#000" fontFamily="monospace" fontSize="5" fontWeight="bold" textAnchor="middle" x="18" y="96">PRONUNC</text>
-                <text fill="#000" fontFamily="monospace" fontSize="5" fontWeight="bold" textAnchor="end" x="0" y="38">COMPREH</text>
-              </svg>
+            {/* Feedback Content */}
+            <div className="p-5 border-b-2 border-black bg-white">
+              <h3 className="text-xs uppercase font-bold tracking-widest mb-3">AI GENERATED FEEDBACK</h3>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {generatedReport.students[0].comment}
+              </p>
             </div>
-          </div>
 
-          {/* Tabular Data */}
-          <div className="bg-white flex flex-col">
-            <div className="p-3 border-b-2 border-black bg-black text-white">
-              <h3 className="text-xs uppercase font-bold tracking-widest">ERROR FREQUENCY & TRENDS</h3>
+            {/* Metrics */}
+            <div className="grid grid-cols-3 border-b-2 border-black bg-white">
+              <div className="p-3 border-r-2 border-black flex flex-col gap-1 items-center">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500 text-center">CURRENT SCORE</span>
+                <span className="font-bold text-xl">{generatedReport.students[0].currentScore || 'N/A'}</span>
+              </div>
+              <div className="p-3 border-r-2 border-black flex flex-col gap-1 items-center">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500 text-center">TARGET SCORE</span>
+                <span className="font-bold text-xl">{generatedReport.students[0].targetScore || 'N/A'}</span>
+              </div>
+              <div className="p-3 flex flex-col gap-1 items-center">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500 text-center">DAYS TO TARGET</span>
+                <span className="font-bold text-xl">{generatedReport.students[0].estimatedDaysToTarget || 'N/A'}</span>
+              </div>
             </div>
-            
-            <div className="grid grid-cols-[3fr_1fr_1fr] border-b-2 border-black text-[10px] uppercase font-bold tracking-widest text-gray-500 bg-gray-100">
-              <div className="p-2 border-r-2 border-black">CATEGORY / METRIC</div>
-              <div className="p-2 border-r-2 border-black text-center">COUNT</div>
-              <div className="p-2 text-center">TREND</div>
-            </div>
-            
-            <div className="grid grid-cols-[3fr_1fr_1fr] border-b-2 border-black text-sm items-center hover:bg-gray-50">
-              <div className="p-3 border-r-2 border-black font-mono truncate">Pronunc: 'th' sound</div>
-              <div className="p-3 border-r-2 border-black text-center font-bold">12</div>
-              <div className="p-3 text-center font-bold text-[#00a843]">+15%</div>
-            </div>
-            <div className="grid grid-cols-[3fr_1fr_1fr] border-b-2 border-black text-sm items-center hover:bg-gray-50">
-              <div className="p-3 border-r-2 border-black font-mono truncate">Grammar: Past Tense</div>
-              <div className="p-3 border-r-2 border-black text-center font-bold">8</div>
-              <div className="p-3 text-center font-bold text-[#f94706]">-5%</div>
-            </div>
-            <div className="grid grid-cols-[3fr_1fr_1fr] border-b-2 border-black text-sm items-center hover:bg-gray-50">
-              <div className="p-3 border-r-2 border-black font-mono truncate">Vocab: Filler Words ("um")</div>
-              <div className="p-3 border-r-2 border-black text-center font-bold">45</div>
-              <div className="p-3 text-center font-bold text-[#00a843]">+22%</div>
-            </div>
-            <div className="grid grid-cols-[3fr_1fr_1fr] text-sm items-center hover:bg-gray-50">
-              <div className="p-3 border-r-2 border-black font-mono truncate">Fluency: Pauses &gt;2s</div>
-              <div className="p-3 border-r-2 border-black text-center font-bold">18</div>
-              <div className="p-3 text-center font-bold text-[#00a843]">+8%</div>
-            </div>
-          </div>
 
-          {/* Document Footer */}
-          <div className="p-4 border-t-4 border-black mt-auto flex justify-between items-end">
-            <div className="text-[10px] uppercase font-bold tracking-widest text-gray-500 flex flex-col">
-              <span>GENERATED BY SMART_INBOX_AI</span>
-              <span>UUID: 8F92-A1B4-C3D4</span>
-            </div>
-            <div className="w-32 border-b-2 border-black h-8 flex items-end justify-center pb-1">
-              <span className="text-[8px] uppercase text-gray-400">TEACHER_SIGNATURE</span>
+            {/* Document Footer */}
+            <div className="p-4 border-t-4 border-black mt-auto flex justify-between items-end">
+              <div className="text-[10px] uppercase font-bold tracking-widest text-gray-500 flex flex-col">
+                <span>GENERATED BY SMART_INBOX_AI</span>
+                <span>UUID: {generatedReport.id || 'PENDING'}</span>
+              </div>
+              <div className="w-32 border-b-2 border-black h-8 flex items-end justify-center pb-1">
+                <span className="text-[8px] uppercase text-gray-400">TEACHER_SIGNATURE</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </main>
 
       {/* Dispatch Action Footer */}
-      <footer className="fixed bottom-0 w-full max-w-md bg-surface border-t-2 border-border-harsh p-4 z-50 no-print">
-        <button 
-          onClick={() => onNavigate('ROSTER')}
-          className="w-full bg-primary text-black font-bold uppercase tracking-widest text-lg py-4 px-6 flex items-center justify-center gap-3 hover:bg-white active:bg-primary border-4 border-primary">
-          <span>EXECUTE DISPATCH -&gt; PARENTS</span>
-          <Send size={24} />
-        </button>
-      </footer>
+      {generatedReport && (
+        <footer className="fixed bottom-0 w-full max-w-md bg-surface border-t-2 border-border-harsh p-4 z-50 no-print">
+          <button 
+            onClick={() => onNavigate('REPORTS')}
+            className="w-full bg-primary text-black font-bold uppercase tracking-widest text-lg py-4 px-6 flex items-center justify-center gap-3 hover:bg-white active:bg-primary border-4 border-primary">
+            <span>VIEW IN REPORTS -&gt;</span>
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

@@ -20,18 +20,13 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
   const [classId, setClassId] = useState(currentClass?.id || 'unassigned');
 
   const handleSave = () => {
-    if (!name.trim() || !id.trim()) return;
+    if (!name.trim()) return;
     
-    // Sanitize ID to prevent invalid Firestore paths (e.g. slashes)
-    const sanitizedId = id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
-    
-    if (!sanitizedId) {
-      alert("ID học sinh không hợp lệ. Vui lòng chỉ sử dụng chữ cái, số, gạch ngang và gạch dưới.");
-      return;
-    }
+    // Auto-generate ID if it's a new student
+    const finalId = studentToEdit?.id || `STU_${Date.now()}`;
 
     onSave({
-      id: sanitizedId,
+      id: finalId,
       name: name.trim().toUpperCase(),
       dataPoints: studentToEdit?.dataPoints || 0,
       status: status,
@@ -73,20 +68,6 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-        </div>
-        
-        <div className="flex flex-col gap-2">
-          <label className="text-white text-xs font-bold uppercase tracking-widest" htmlFor="student_id">STUDENT_ID</label>
-          <input 
-            className="w-full bg-surface border-2 border-muted text-white p-3 text-base font-medium placeholder-muted uppercase focus:border-primary focus:bg-background-dark focus:outline-none transition-colors" 
-            id="student_id" 
-            placeholder="ID-XXXX" 
-            type="text" 
-            value={id}
-            onChange={(e) => setId(e.target.value)}
-            disabled={!!studentToEdit}
-          />
-          {studentToEdit && <span className="text-[9px] text-muted italic">ID cannot be changed after creation</span>}
         </div>
         
         <div className="flex flex-col gap-2">
@@ -157,7 +138,7 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
         <div className="max-w-3xl mx-auto w-full flex flex-col gap-3">
           <button 
             onClick={handleSave}
-            disabled={!name.trim() || !id.trim()}
+            disabled={!name.trim()}
             className="w-full bg-accent text-background-dark font-bold text-base py-4 px-6 uppercase tracking-widest hover:bg-white focus:outline-none border-2 border-accent hover:border-white disabled:opacity-50">
             [ SAVE_STUDENT ]
           </button>

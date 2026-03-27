@@ -443,8 +443,8 @@ export default function App() {
         {currentScreen === 'INBOX' && (
           <Inbox 
             onNavigate={navigate} 
-            onAnalysisComplete={handleAnalysisComplete} 
             classes={classes} 
+            students={students}
             reports={reports}
             onDeleteReport={handleDeleteReport}
             onSelectReport={handleSelectReport}
@@ -478,7 +478,13 @@ export default function App() {
             onArchive={handleArchiveStudent}
           />
         )}
-        {currentScreen === 'REPORT_GEN' && <ReportGen onNavigate={navigate} />}
+        {currentScreen === 'REPORT_GEN' && (
+          <ReportGen 
+            onNavigate={navigate} 
+            classes={classes}
+            students={students}
+          />
+        )}
         {currentScreen === 'ANALYSIS_DETAIL' && <AnalysisDetail onNavigate={navigate} analysisResult={analysisResult} />}
         {currentScreen === 'REPORTS' && <Reports onNavigate={navigate} reports={reports} classes={classes} students={students} onSelectReport={handleSelectReport} onDeleteReport={handleDeleteReport} />}
         {!['INBOX', 'ROSTER', 'EDIT_CLASS', 'EDIT_STUDENT', 'REPORT_GEN', 'ANALYSIS_DETAIL', 'REPORTS'].includes(currentScreen) && (

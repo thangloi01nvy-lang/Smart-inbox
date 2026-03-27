@@ -94,8 +94,7 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
               {isExpanded && (
                 <div className="flex flex-col p-4 gap-4 bg-background-dark/50">
                   <div className="grid grid-cols-12 gap-2 text-muted text-[10px] font-bold border-b border-border-harsh pb-2 uppercase tracking-wider">
-                    <div className="col-span-2">ID</div>
-                    <div className="col-span-5">NAME</div>
+                    <div className="col-span-7">NAME</div>
                     <div className="col-span-2 text-right">PTS</div>
                     <div className="col-span-3 text-right">STATUS</div>
                   </div>
@@ -148,8 +147,7 @@ function StudentRow({ student, onClick }: { student: Student, onClick: () => voi
     <div 
       onClick={onClick}
       className="grid grid-cols-12 gap-2 items-center text-sm border-b border-border-harsh/30 pb-3 cursor-pointer hover:bg-white/5 group">
-      <div className="col-span-2 text-muted text-[10px]">{student.id.split('-')[1] || student.id}</div>
-      <div className="col-span-5 flex items-center gap-2">
+      <div className="col-span-7 flex items-center gap-2">
         <div className="w-6 h-6 bg-muted border border-muted flex items-center justify-center text-background-dark font-bold shrink-0">
           <User size={12} />
         </div>

@@ -124,6 +124,48 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
           )}
         </section>
 
+        {/* KPI Summary Section */}
+        {analysisResult && analysisResult.students.length > 0 && (
+          <section className="bg-surface border-2 border-border-harsh p-4 flex flex-col gap-4">
+            <div className="flex items-center gap-2 text-white mb-2">
+              <TrendingUp size={24} />
+              <h2 className="text-sm font-bold uppercase tracking-widest">KEY_PERFORMANCE_INDICATORS</h2>
+            </div>
+            
+            <div className="flex flex-col gap-6">
+              {analysisResult.students.map((student, idx) => {
+                const current = student.currentScore || 0;
+                const target = student.targetScore || 100;
+                const progress = Math.min(100, Math.max(0, (current / target) * 100));
+                
+                return (
+                  <div key={idx} className="flex flex-col gap-2">
+                    <div className="flex justify-between items-end">
+                      <span className="font-bold uppercase text-sm">{student.name}</span>
+                      <span className="text-xs text-muted font-mono">
+                        {current} / {target} ({student.estimatedDaysToTarget || '?'} DAYS TO TARGET)
+                      </span>
+                    </div>
+                    
+                    {/* Progress Bar */}
+                    <div className="h-4 w-full bg-background-dark border-2 border-border-harsh relative overflow-hidden">
+                      <div 
+                        className="absolute top-0 left-0 bottom-0 bg-primary transition-all duration-1000 ease-out"
+                        style={{ width: `${progress}%` }}
+                      />
+                      {/* Target Marker */}
+                      <div 
+                        className="absolute top-0 bottom-0 w-1 bg-white z-10"
+                        style={{ left: '100%' }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Target Projection Chart */}
         {analysisResult && analysisResult.students.length > 0 && (
           <section className="bg-surface border-2 border-border-harsh p-4 flex flex-col gap-3">

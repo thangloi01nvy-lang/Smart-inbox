@@ -1,28 +1,41 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Camera, FileText, Plus, X, Upload, Square, Brain, Trash2 } from 'lucide-react';
-import { analyzeMedia, analyzeText, AnalysisResult } from '../services/geminiService';
-import { Class } from '../types';
-import { storage, auth } from '../firebase';
+import { Class, Student } from '../types';
+import { storage, auth, db } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc } from 'firebase/firestore';
 
-export function Inbox({ onNavigate, onAnalysisComplete, classes, reports = [], onDeleteReport, onSelectReport }: { 
+export function Inbox({ onNavigate, classes, students, reports = [], onDeleteReport, onSelectReport }: { 
   onNavigate: (s: string) => void, 
-  onAnalysisComplete?: (result: any) => void,
   classes: Class[],
-  reports?: AnalysisResult[],
+  students: Student[],
+  reports?: any[],
   onDeleteReport?: (id: string, storagePath?: string) => void,
-  onSelectReport?: (report: AnalysisResult) => void
+  onSelectReport?: (report: any) => void
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedClass, setSelectedClass] = useState(classes[0]?.name || 'UNASSIGNED');
+  const [selectedClass, setSelectedClass] = useState(classes[0]?.id || 'UNASSIGNED');
+  const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [isTypingNote, setIsTypingNote] = useState(false);
   const [noteText, setNoteText] = useState('');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  // Filter students based on selected class
+  const classStudents = students.filter(s => s.classId === selectedClass);
+
+  // Auto-select first student when class changes
+  useEffect(() => {
+    if (classStudents.length > 0) {
+      setSelectedStudent(classStudents[0].id);
+    } else {
+      setSelectedStudent('');
+    }
+  }, [selectedClass, students]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -119,6 +132,10 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes, reports = [], o
   };
 
   const processMediaBlob = async (rawBlob: Blob, rawMimeType: string) => {
+    if (!selectedStudent) {
+      alert("Please select a student first.");
+      return;
+    }
     setIsProcessing(true);
     try {
       // Compress image if it's an image
@@ -126,46 +143,32 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes, reports = [], o
       const mimeType = blob.type || rawMimeType;
 
       // Prepare Firebase Storage upload promise
-      let uploadPromise = Promise.resolve({ audioUrl: '', storagePath: '' });
+      let fileUrl = '';
+      let storagePath = '';
       if (auth.currentUser) {
         const fileId = Date.now().toString();
-        const path = `recordings/${auth.currentUser.uid}/${fileId}`;
+        const path = `logs/${auth.currentUser.uid}/${fileId}`;
         const storageRef = ref(storage, path);
-        uploadPromise = uploadBytes(storageRef, blob).then(async (uploadResult) => {
-          const url = await getDownloadURL(uploadResult.ref);
-          return { audioUrl: url, storagePath: path };
+        const uploadResult = await uploadBytes(storageRef, blob);
+        fileUrl = await getDownloadURL(uploadResult.ref);
+        storagePath = path;
+      }
+
+      // Save log to Firestore
+      if (auth.currentUser) {
+        await addDoc(collection(db, 'logs'), {
+          studentId: selectedStudent,
+          classId: selectedClass,
+          type: mimeType.startsWith('image/') ? 'image' : 'audio',
+          fileUrl,
+          storagePath,
+          date: new Date().toISOString(),
+          teacherUid: auth.currentUser.uid
         });
       }
 
-      // Prepare Gemini analysis promise
-      const analysisPromise = new Promise<AnalysisResult>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = async () => {
-          try {
-            const base64data = (reader.result as string).split(',')[1];
-            const result = await analyzeMedia(base64data, mimeType, selectedClass);
-            resolve(result);
-          } catch (error) {
-            reject(error);
-          }
-        };
-        reader.onerror = reject;
-      });
-
-      // Run both in parallel
-      const [uploadData, analysisResult] = await Promise.all([uploadPromise, analysisPromise]);
-
-      if (onAnalysisComplete) {
-        onAnalysisComplete({ 
-          ...analysisResult, 
-          audioUrl: uploadData.audioUrl, 
-          storagePath: uploadData.storagePath, 
-          className: selectedClass 
-        });
-      }
       setIsProcessing(false);
-      onNavigate('ANALYSIS_DETAIL');
+      alert("Log saved successfully!");
     } catch (error) {
       console.error("Error processing media:", error);
       alert("Failed to process media. Please try again.");
@@ -224,19 +227,28 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes, reports = [], o
   };
 
   const handleSubmitNote = async () => {
-    if (!noteText.trim()) return;
+    if (!noteText.trim() || !selectedStudent) {
+      if (!selectedStudent) alert("Please select a student first.");
+      return;
+    }
     setIsTypingNote(false);
     setIsProcessing(true);
     try {
-      const result = await analyzeText(noteText, selectedClass);
-      if (onAnalysisComplete) {
-        onAnalysisComplete({ ...result, className: selectedClass });
+      if (auth.currentUser) {
+        await addDoc(collection(db, 'logs'), {
+          studentId: selectedStudent,
+          classId: selectedClass,
+          type: 'text',
+          content: noteText,
+          date: new Date().toISOString(),
+          teacherUid: auth.currentUser.uid
+        });
       }
       setIsProcessing(false);
-      onNavigate('ANALYSIS_DETAIL');
+      alert("Log saved successfully!");
     } catch (error: any) {
-      console.error("Error analyzing text:", error);
-      alert("Failed to analyze text with Gemini: " + (error.message || error));
+      console.error("Error saving text log:", error);
+      alert("Failed to save text log: " + (error.message || error));
       setIsProcessing(false);
     }
   };
@@ -260,19 +272,34 @@ export function Inbox({ onNavigate, onAnalysisComplete, classes, reports = [], o
             </button>
           </div>
         </div>
-        {/* Class Selector Context */}
-        <div className="px-4 pb-4">
-          <label className="text-xs font-bold text-muted uppercase tracking-widest mb-1 block">CURRENT_CONTEXT:</label>
-          <select 
-            value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
-            className="w-full bg-surface border-2 border-border-harsh text-white p-3 text-sm font-bold uppercase appearance-none focus:border-primary focus:outline-none cursor-pointer"
-          >
-            {classes.map(c => (
-              <option key={c.id} value={c.name}>{c.name}</option>
-            ))}
-            {classes.length === 0 && <option value="UNASSIGNED">NO_CLASSES_FOUND</option>}
-          </select>
+        {/* Context Selectors */}
+        <div className="px-4 pb-4 flex flex-col gap-3">
+          <div>
+            <label className="text-xs font-bold text-muted uppercase tracking-widest mb-1 block">CLASS:</label>
+            <select 
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="w-full bg-surface border-2 border-border-harsh text-white p-3 text-sm font-bold uppercase appearance-none focus:border-primary focus:outline-none cursor-pointer"
+            >
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              {classes.length === 0 && <option value="UNASSIGNED">NO_CLASSES_FOUND</option>}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-muted uppercase tracking-widest mb-1 block">STUDENT:</label>
+            <select 
+              value={selectedStudent}
+              onChange={(e) => setSelectedStudent(e.target.value)}
+              className="w-full bg-surface border-2 border-border-harsh text-white p-3 text-sm font-bold uppercase appearance-none focus:border-primary focus:outline-none cursor-pointer"
+            >
+              {classStudents.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+              {classStudents.length === 0 && <option value="">NO_STUDENTS_FOUND</option>}
+            </select>
+          </div>
         </div>
       </div>
 
