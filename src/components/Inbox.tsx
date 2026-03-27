@@ -5,13 +5,14 @@ import { storage, auth, db } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc } from 'firebase/firestore';
 
-export function Inbox({ onNavigate, classes, students, reports = [], onDeleteReport, onSelectReport }: { 
+export function Inbox({ onNavigate, classes, students, reports = [], onDeleteReport, onSelectReport, onGenerateReport }: { 
   onNavigate: (s: string) => void, 
   classes: Class[],
   students: Student[],
   reports?: any[],
   onDeleteReport?: (id: string, storagePath?: string) => void,
-  onSelectReport?: (report: any) => void
+  onSelectReport?: (report: any) => void,
+  onGenerateReport?: (classId: string, studentId: string) => void
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -21,6 +22,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
   const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [isTypingNote, setIsTypingNote] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const [lastSaved, setLastSaved] = useState<{classId: string, studentId: string, studentName: string} | null>(null);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -168,7 +170,9 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       }
 
       setIsProcessing(false);
-      alert("Log saved successfully!");
+      const studentName = students.find(s => s.id === selectedStudent)?.name || 'Student';
+      setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName });
+      setTimeout(() => setLastSaved(null), 5000);
     } catch (error) {
       console.error("Error processing media:", error);
       alert("Failed to process media. Please try again.");
@@ -245,7 +249,9 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
         });
       }
       setIsProcessing(false);
-      alert("Log saved successfully!");
+      const studentName = students.find(s => s.id === selectedStudent)?.name || 'Student';
+      setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName });
+      setTimeout(() => setLastSaved(null), 5000);
     } catch (error: any) {
       console.error("Error saving text log:", error);
       alert("Failed to save text log: " + (error.message || error));
@@ -260,6 +266,11 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
         <div className="flex items-center p-4 justify-between">
           <h2 className="text-text-main text-[32px] font-bold leading-tight tracking-tight uppercase flex-1">&gt; INBOX</h2>
           <div className="flex gap-2">
+            <button 
+              onClick={() => onNavigate('REPORT_GEN')}
+              className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+              [GEN_REPORT]
+            </button>
             <button 
               onClick={() => onNavigate('REPORTS')}
               className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
@@ -301,6 +312,19 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
             </select>
           </div>
         </div>
+        {lastSaved && (
+          <div className="px-4 pb-4">
+            <div className="bg-primary text-black p-3 flex justify-between items-center border-2 border-primary">
+              <span className="text-sm font-bold uppercase tracking-widest">LOG SAVED: {lastSaved.studentName}</span>
+              <button 
+                onClick={() => onGenerateReport && onGenerateReport(lastSaved.classId, lastSaved.studentId)}
+                className="bg-black text-primary px-3 py-1 text-xs font-bold uppercase tracking-widest border-2 border-black hover:bg-white hover:text-black transition-colors"
+              >
+                GENERATE REPORT
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Feed Content */}

@@ -61,7 +61,11 @@ export function Reports({
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-xl font-bold uppercase tracking-wider">&gt; REPORTS_ARCHIVE</h1>
-        <div className="w-10 h-10"></div>
+        <button 
+          onClick={() => onNavigate('REPORT_GEN')}
+          className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+          [GEN_REPORT]
+        </button>
       </header>
 
       {/* Filters */}

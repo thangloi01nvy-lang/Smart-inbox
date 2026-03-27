@@ -38,6 +38,29 @@ service cloud.firestore {
     //   - teacherUid: string (required) - UID of the teacher
     //   - students: list of objects (optional) - feedback for each student
     //
+    // Collection: logs
+    // Document ID: auto-generated
+    // Fields:
+    //   - studentId: string (required)
+    //   - classId: string (required)
+    //   - type: string (required)
+    //   - fileUrl: string (optional)
+    //   - storagePath: string (optional)
+    //   - content: string (optional)
+    //   - date: string (required)
+    //   - teacherUid: string (required)
+    //
+    // Collection: reports
+    // Document ID: auto-generated
+    // Fields:
+    //   - date: string (required)
+    //   - teacherUid: string (required)
+    //   - classId: string (required)
+    //   - transcript: string (required)
+    //   - summary: string (required)
+    //   - type: string (required)
+    //   - students: list of objects (optional)
+    //
     // ===============================================================
 
     // ===============================================================
@@ -121,17 +144,43 @@ service cloud.firestore {
     }
 
     function isValidAnalysisResult(data) {
-      return data.keys().hasOnly(['id', 'date', 'classId', 'className', 'transcript', 'summary', 'audioUrl', 'teacherUid', 'students', 'storagePath']) &&
+      return data.keys().hasOnly(['id', 'date', 'classId', 'className', 'transcript', 'summary', 'audioUrl', 'teacherUid', 'students', 'storagePath', 'type']) &&
              data.id is string && data.id.size() > 0 &&
              data.date is string && isValidDateString(data.date) &&
              data.classId is string && data.classId.size() > 0 &&
              data.className is string && data.className.size() > 0 &&
              data.transcript is string &&
              data.summary is string &&
-             (!('audioUrl' in data) || isValidUrl(data.audioUrl)) &&
+             (!('type' in data) || data.type is string) &&
+             (!('audioUrl' in data) || data.audioUrl == '' || isValidUrl(data.audioUrl)) &&
              (!('storagePath' in data) || data.storagePath is string) &&
              data.teacherUid is string && data.teacherUid == request.auth.uid &&
              (!('students' in data) || data.students is list);
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasOnly(['studentId', 'classId', 'type', 'fileUrl', 'storagePath', 'content', 'date', 'teacherUid']) &&
+             data.studentId is string && data.studentId.size() > 0 &&
+             data.classId is string && data.classId.size() > 0 &&
+             data.type is string && data.type.size() > 0 &&
+             (!('fileUrl' in data) || data.fileUrl == '' || isValidUrl(data.fileUrl)) &&
+             (!('storagePath' in data) || data.storagePath is string) &&
+             (!('content' in data) || data.content is string) &&
+             data.date is string && isValidDateString(data.date) &&
+             data.teacherUid is string && data.teacherUid == request.auth.uid;
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasOnly(['date', 'teacherUid', 'classId', 'transcript', 'summary', 'type', 'students', 'id', 'storagePath']) &&
+             data.date is string && isValidDateString(data.date) &&
+             data.teacherUid is string && data.teacherUid == request.auth.uid &&
+             data.classId is string && data.classId.size() > 0 &&
+             data.transcript is string &&
+             data.summary is string &&
+             data.type is string && data.type.size() > 0 &&
+             (!('students' in data) || data.students is list) &&
+             (!('id' in data) || data.id is string) &&
+             (!('storagePath' in data) || data.storagePath is string);
     }
 
     // ===============================================================
@@ -156,6 +205,20 @@ service cloud.firestore {
       allow read: if isDocOwner() || isAdmin();
       allow create: if isAuthenticated() && isValidAnalysisResult(request.resource.data);
       allow update: if isDocOwner() && isValidAnalysisResult(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /logs/{logId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidLog(request.resource.data);
+      allow update: if isDocOwner() && isValidLog(request.resource.data) && uidNotModified();
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && isValidReport(request.resource.data);
+      allow update: if isDocOwner() && isValidReport(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner() || isAdmin();
     }
 

@@ -448,6 +448,11 @@ export default function App() {
             reports={reports}
             onDeleteReport={handleDeleteReport}
             onSelectReport={handleSelectReport}
+            onGenerateReport={(classId, studentId) => {
+              setSelectedClassId(classId);
+              setSelectedStudentId(studentId);
+              setCurrentScreen('REPORT_GEN');
+            }}
           />
         )}
         {currentScreen === 'ROSTER' && (
@@ -457,6 +462,11 @@ export default function App() {
             students={students} 
             onEditClass={handleEditClass} 
             onEditStudent={handleEditStudent} 
+            onGenerateReport={(classId, studentId) => {
+              setSelectedClassId(classId);
+              setSelectedStudentId(studentId);
+              setCurrentScreen('REPORT_GEN');
+            }}
           />
         )}
         {currentScreen === 'EDIT_CLASS' && (
@@ -483,6 +493,8 @@ export default function App() {
             onNavigate={navigate} 
             classes={classes}
             students={students}
+            initialClassId={selectedClassId}
+            initialStudentId={selectedStudentId}
           />
         )}
         {currentScreen === 'ANALYSIS_DETAIL' && <AnalysisDetail onNavigate={navigate} analysisResult={analysisResult} />}

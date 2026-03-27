@@ -40,4 +40,5 @@ export interface AnalysisResult {
   storagePath?: string;
   teacherUid: string;
   students: StudentAnalysis[];
+  type?: string;
 }

@@ -1,42 +1,107 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import { db, auth } from '../firebase';
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
 import { generateUnifiedReport } from '../services/geminiService';
 import { AnalysisResult, Class, Student } from '../types';
 
 export function ReportGen({ 
   onNavigate,
   classes,
-  students
+  students,
+  initialClassId,
+  initialStudentId
 }: { 
   onNavigate: (s: string) => void,
   classes: Class[],
-  students: Student[]
+  students: Student[],
+  initialClassId?: string | null,
+  initialStudentId?: string | null
 }) {
-  const [selectedClass, setSelectedClass] = useState<string>(classes[0]?.id || '');
-  const [selectedStudent, setSelectedStudent] = useState<string>('');
+  const [selectedClass, setSelectedClass] = useState<string>(initialClassId || classes[0]?.id || '');
+  const [selectedStudent, setSelectedStudent] = useState<string>(initialStudentId || '');
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7)); // YYYY-MM
   
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isFetchingLogs, setIsFetchingLogs] = useState(false);
+  const [logs, setLogs] = useState<any[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>('AWAITING COMMAND');
   const [generatedReport, setGeneratedReport] = useState<any>(null);
+
+  useEffect(() => {
+    if (initialClassId && classes.some(c => c.id === initialClassId)) {
+      setSelectedClass(initialClassId);
+    }
+  }, [initialClassId, classes]);
 
   const classStudents = useMemo(() => {
     return students.filter(s => s.classId === selectedClass);
   }, [students, selectedClass]);
 
   useEffect(() => {
-    if (classStudents.length > 0) {
+    if (initialStudentId && classStudents.some(s => s.id === initialStudentId)) {
+      setSelectedStudent(initialStudentId);
+    } else if (classStudents.length > 0) {
       setSelectedStudent(classStudents[0].id);
     } else {
       setSelectedStudent('');
     }
-  }, [classStudents]);
+  }, [classStudents, initialStudentId]);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (!selectedStudent || !selectedMonth) {
+        setLogs([]);
+        return;
+      }
+
+      const teacherUid = auth.currentUser?.uid;
+      if (!teacherUid) return;
+
+      setIsFetchingLogs(true);
+      setStatusMessage('FETCHING LOGS...');
+      try {
+        const logsRef = collection(db, 'logs');
+        const [year, month] = selectedMonth.split('-');
+        const startDate = new Date(parseInt(year), parseInt(month) - 1, 1).toISOString();
+        const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59).toISOString();
+
+        const q = query(
+          logsRef,
+          where('teacherUid', '==', teacherUid),
+          where('studentId', '==', selectedStudent),
+          where('date', '>=', startDate),
+          where('date', '<=', endDate)
+        );
+
+        const querySnapshot = await getDocs(q);
+        const fetchedLogs = querySnapshot.docs.map(doc => doc.data());
+        setLogs(fetchedLogs);
+        
+        if (fetchedLogs.length === 0) {
+          setStatusMessage('NO LOGS FOUND FOR THIS PERIOD');
+        } else {
+          setStatusMessage(`FOUND ${fetchedLogs.length} LOGS. READY TO GENERATE.`);
+        }
+      } catch (error: any) {
+        console.error("Error fetching logs:", error);
+        setStatusMessage('ERROR FETCHING LOGS: ' + error.message);
+      } finally {
+        setIsFetchingLogs(false);
+      }
+    };
+
+    fetchLogs();
+  }, [selectedStudent, selectedMonth]);
 
   const handleGenerate = async () => {
     if (!selectedClass || !selectedStudent || !selectedMonth) {
       alert("Please select class, student, and month.");
+      return;
+    }
+
+    if (logs.length === 0) {
+      alert("No logs found to generate a report.");
       return;
     }
 
@@ -47,35 +112,10 @@ export function ReportGen({
     }
 
     setIsGenerating(true);
-    setStatusMessage('FETCHING LOGS...');
+    setStatusMessage(`GENERATING REPORT FROM ${logs.length} LOGS...`);
     setGeneratedReport(null);
 
     try {
-      // 1. Fetch logs for the selected student and month
-      const logsRef = collection(db, 'logs');
-      const [year, month] = selectedMonth.split('-');
-      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1).toISOString();
-      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59).toISOString();
-
-      const q = query(
-        logsRef,
-        where('teacherUid', '==', teacherUid),
-        where('studentId', '==', selectedStudent),
-        where('date', '>=', startDate),
-        where('date', '<=', endDate)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const logs = querySnapshot.docs.map(doc => doc.data());
-
-      if (logs.length === 0) {
-        setStatusMessage('NO LOGS FOUND FOR THIS PERIOD');
-        setIsGenerating(false);
-        return;
-      }
-
-      setStatusMessage(`FOUND ${logs.length} LOGS. GENERATING REPORT...`);
-
       // 2. Send to Gemini
       const studentName = students.find(s => s.id === selectedStudent)?.name || 'Unknown Student';
       const reportData = await generateUnifiedReport(logs, studentName);
@@ -83,18 +123,46 @@ export function ReportGen({
       setStatusMessage('REPORT GENERATED. SAVING...');
 
       // 3. Save the report to Firestore
-      const reportsRef = collection(db, 'reports');
+      const reportsRef = collection(db, 'analysisResults');
       const newReport = {
+        id: Date.now().toString(),
         date: new Date().toISOString(),
         teacherUid,
         classId: selectedClass,
+        className: classes.find(c => c.id === selectedClass)?.name || 'Unknown',
         transcript: reportData.transcript || 'Monthly Summary',
         summary: reportData.summary || 'Monthly Summary',
         students: reportData.students,
         type: 'monthly_summary'
       };
 
-      await addDoc(reportsRef, newReport);
+      await setDoc(doc(db, 'analysisResults', newReport.id), newReport);
+
+      // 4. Update the student document
+      const student = students.find(s => s.id === selectedStudent);
+      if (student && reportData.students && reportData.students.length > 0) {
+        const sAnalysis = reportData.students[0];
+        const newTrend = [...(student.trend || []), sAnalysis.currentScore].slice(-5);
+        
+        const newComment = { date: newReport.date, text: sAnalysis.comment };
+        const updatedComments = [...(student.comments || [])];
+        if (student.lastComment && updatedComments.length === 0) {
+          updatedComments.push({ date: student.lastAnalysisDate || new Date(0).toISOString(), text: student.lastComment });
+        }
+        updatedComments.push(newComment);
+
+        await setDoc(doc(db, 'students', student.id), {
+          ...student,
+          currentScore: sAnalysis.currentScore,
+          targetScore: sAnalysis.targetScore,
+          estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
+          lastComment: sAnalysis.comment,
+          comments: updatedComments,
+          dataPoints: (student.dataPoints || 0) + 1,
+          trend: newTrend,
+          lastAnalysisDate: newReport.date
+        });
+      }
 
       setGeneratedReport(newReport);
       setStatusMessage('REPORT SAVED SUCCESSFULLY.');
@@ -167,10 +235,10 @@ export function ReportGen({
           </div>
           <button 
             onClick={handleGenerate}
-            disabled={isGenerating || !selectedStudent}
+            disabled={isGenerating || isFetchingLogs || logs.length === 0 || !selectedStudent}
             className="w-full bg-primary text-black font-bold uppercase tracking-widest text-sm py-3 px-4 flex items-center justify-center gap-2 hover:bg-white active:bg-primary border-2 border-primary disabled:opacity-50 disabled:cursor-not-allowed mt-2">
             {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
-            <span>{isGenerating ? 'GENERATING...' : 'GENERATE REPORT'}</span>
+            <span>{isGenerating ? 'GENERATING...' : `GENERATE REPORT (${logs.length} LOGS)`}</span>
           </button>
         </div>
 

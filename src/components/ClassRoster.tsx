@@ -8,9 +8,10 @@ interface ClassRosterProps {
   students: Student[];
   onEditClass: (id: string | null) => void;
   onEditStudent: (id: string | null) => void;
+  onGenerateReport?: (classId: string, studentId: string) => void;
 }
 
-export function ClassRoster({ onNavigate, classes, students, onEditClass, onEditStudent }: ClassRosterProps) {
+export function ClassRoster({ onNavigate, classes, students, onEditClass, onEditStudent, onGenerateReport }: ClassRosterProps) {
   const [expandedClassId, setExpandedClassId] = useState<string | null>(classes[0]?.id || null);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -31,11 +32,18 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
       <div className="relative flex h-auto w-full flex-col bg-background-dark overflow-x-hidden font-display border-b-2 border-border-harsh">
         <div className="flex items-center bg-background-dark p-4 pb-2 justify-between">
           <h2 className="text-text-main text-2xl font-bold leading-tight uppercase tracking-widest flex-1 font-mono">&gt; CLASS_ROSTER</h2>
-          <button 
-            onClick={() => onNavigate('INBOX')}
-            className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
-            [INBOX]
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => onNavigate('REPORT_GEN')}
+              className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+              [GEN_REPORT]
+            </button>
+            <button 
+              onClick={() => onNavigate('INBOX')}
+              className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+              [INBOX]
+            </button>
+          </div>
         </div>
         
         <div className="px-4 pb-4 flex flex-col gap-3">
@@ -103,7 +111,7 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
                     <div className="text-center py-4 text-muted text-[10px] uppercase italic">No students found</div>
                   ) : (
                     classStudents.map(student => (
-                      <StudentRow key={student.id} student={student} onClick={() => onEditStudent(student.id)} />
+                      <StudentRow key={student.id} student={student} onClick={() => onEditStudent(student.id)} onGenerateReport={onGenerateReport} />
                     ))
                   )}
                 </div>
@@ -131,7 +139,7 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
             {expandedClassId === 'unassigned' && (
               <div className="flex flex-col p-4 gap-4 bg-background-dark/50">
                 {filteredStudents(unassignedStudents).map(student => (
-                  <StudentRow key={student.id} student={student} onClick={() => onEditStudent(student.id)} />
+                  <StudentRow key={student.id} student={student} onClick={() => onEditStudent(student.id)} onGenerateReport={onGenerateReport} />
                 ))}
               </div>
             )}
@@ -142,19 +150,28 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
   );
 }
 
-function StudentRow({ student, onClick }: { student: Student, onClick: () => void }) {
+function StudentRow({ student, onClick, onGenerateReport }: { student: Student, onClick: () => void, onGenerateReport?: (classId: string, studentId: string) => void }) {
   return (
-    <div 
-      onClick={onClick}
-      className="grid grid-cols-12 gap-2 items-center text-sm border-b border-border-harsh/30 pb-3 cursor-pointer hover:bg-white/5 group">
-      <div className="col-span-7 flex items-center gap-2">
+    <div className="grid grid-cols-12 gap-2 items-center text-sm border-b border-border-harsh/30 pb-3 hover:bg-white/5 group">
+      <div 
+        onClick={onClick}
+        className="col-span-6 flex items-center gap-2 cursor-pointer">
         <div className="w-6 h-6 bg-muted border border-muted flex items-center justify-center text-background-dark font-bold shrink-0">
           <User size={12} />
         </div>
         <span className="font-bold truncate group-hover:text-primary transition-colors">{student.name}</span>
       </div>
       <div className="col-span-2 text-right font-bold text-primary">{student.dataPoints}</div>
-      <div className="col-span-3 flex items-center justify-end gap-2">
+      <div className="col-span-4 flex items-center justify-end gap-2">
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onGenerateReport) onGenerateReport(student.classId, student.id);
+          }}
+          className="text-[9px] font-bold px-2 py-1 uppercase border border-border-harsh hover:bg-primary hover:text-black hover:border-primary transition-colors"
+        >
+          [REPORT]
+        </button>
         <span className={`text-[9px] font-bold px-1 py-0.5 uppercase border ${student.status === 'READY' ? 'bg-accent text-black border-accent' : 'text-muted border-muted'}`}>
           [{student.status}]
         </span>

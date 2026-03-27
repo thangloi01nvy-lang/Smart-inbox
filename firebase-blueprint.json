@@ -39,6 +39,7 @@
         "className": { "type": "string", "description": "Name of the class at the time of analysis" },
         "transcript": { "type": "string", "description": "Full transcript or description" },
         "summary": { "type": "string", "description": "Overall summary" },
+        "type": { "type": "string", "description": "Type of analysis" },
         "audioUrl": { "type": "string", "description": "URL to the audio file in Firebase Storage" },
         "teacherUid": { "type": "string", "description": "UID of the teacher who owns this analysis" },
         "students": {
@@ -56,6 +57,49 @@
         }
       },
       "required": ["id", "date", "classId", "className", "transcript", "summary", "teacherUid"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "A log entry for a student",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "classId": { "type": "string" },
+        "type": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "teacherUid": { "type": "string" }
+      },
+      "required": ["studentId", "classId", "type", "date", "teacherUid"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "A generated unified report",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "teacherUid": { "type": "string" },
+        "classId": { "type": "string" },
+        "transcript": { "type": "string" },
+        "summary": { "type": "string" },
+        "type": { "type": "string" },
+        "students": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "comment": { "type": "string" },
+              "currentScore": { "type": "number" },
+              "targetScore": { "type": "number" },
+              "estimatedDaysToTarget": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["date", "teacherUid", "classId", "transcript", "summary", "type"]
     }
   },
   "firestore": {
@@ -70,6 +114,14 @@
     "/analysisResults/{resultId}": {
       "schema": "AnalysisResult",
       "description": "Collection of AI analysis results"
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Collection of logs"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Collection of reports"
     }
   }
 }
