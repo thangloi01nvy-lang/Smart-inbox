@@ -182,20 +182,20 @@ export function ReportGen({
     <div className="flex flex-col items-center h-full w-full font-display pb-24 print:pb-0 print:h-auto print:overflow-visible">
       {/* App Header */}
       <header className="w-full max-w-md bg-surface border-b-2 border-border-harsh sticky top-0 z-50 no-print">
-        <div className="flex items-center p-4">
+        <div className="flex items-center p-4 gap-3">
           <button 
             onClick={() => onNavigate('ROSTER')}
             aria-label="Go Back" 
-            className="text-white flex w-12 h-12 shrink-0 items-center justify-center border-2 border-border-harsh hover:bg-[#333333] active:bg-primary mr-4">
+            className="text-white flex w-10 h-10 shrink-0 items-center justify-center border-2 border-border-harsh hover:bg-[#333333] active:bg-primary">
             <ArrowLeft size={24} />
           </button>
-          <h1 className="text-white text-xl font-bold uppercase tracking-widest flex-1 truncate">&gt; REPORT_GEN</h1>
+          <h1 className="text-white text-lg sm:text-xl font-bold uppercase tracking-widest flex-1 truncate">&gt; REPORT_GEN</h1>
           {generatedReport && (
             <button 
               onClick={() => window.print()}
               aria-label="Export PDF" 
-              className="text-primary flex w-12 h-12 shrink-0 items-center justify-center border-2 border-border-harsh hover:bg-primary hover:text-black active:bg-primary ml-4 transition-colors">
-              <Download size={24} />
+              className="text-primary flex w-10 h-10 shrink-0 items-center justify-center border-2 border-border-harsh hover:bg-primary hover:text-black active:bg-primary transition-colors">
+              <Download size={20} />
             </button>
           )}
         </div>

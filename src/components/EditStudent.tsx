@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { ArrowLeft, ChevronDown } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ArrowLeft, ChevronDown, TrendingUp } from 'lucide-react';
 import { Student, Class } from '../types';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface EditStudentProps {
   onNavigate: (s: string) => void;
@@ -15,9 +16,16 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
   const [id, setId] = useState(studentToEdit?.id || '');
   const [status, setStatus] = useState<'READY' | 'PENDING'>(studentToEdit?.status || 'PENDING');
   
-  // Find which class the student is currently in
   const currentClass = classes.find(c => c.id === studentToEdit?.classId);
   const [classId, setClassId] = useState(currentClass?.id || 'unassigned');
+
+  const trendData = useMemo(() => {
+    if (!studentToEdit?.trend || studentToEdit.trend.length === 0) return [];
+    return studentToEdit.trend.map((score, index) => ({
+      session: `S${index + 1}`,
+      score: score
+    }));
+  }, [studentToEdit?.trend]);
 
   const handleSave = () => {
     if (!name.trim()) return;
@@ -43,14 +51,14 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
 
   return (
     <div className="flex flex-col h-full w-full font-mono pb-24 bg-background-dark">
-      <div className="flex items-center justify-between p-4 border-b-2 border-border-harsh bg-background-dark sticky top-0 z-10">
+      <div className="flex items-center justify-between p-4 border-b-2 border-border-harsh bg-background-dark sticky top-0 z-10 gap-3">
         <button 
           onClick={() => onNavigate('ROSTER')}
-          className="text-white hover:text-primary active:text-primary focus:outline-none">
+          className="text-white hover:text-primary active:text-primary focus:outline-none shrink-0">
           <ArrowLeft size={24} />
         </button>
-        <h1 className="text-white text-xl font-bold uppercase tracking-wider">&gt; {studentToEdit ? 'EDIT_STUDENT' : 'NEW_STUDENT'}</h1>
-        <div className="w-6"></div>
+        <h1 className="text-white text-lg sm:text-xl font-bold uppercase tracking-wider flex-1 truncate">&gt; {studentToEdit ? 'EDIT_STUDENT' : 'NEW_STUDENT'}</h1>
+        <div className="w-6 shrink-0"></div>
       </div>
       
       <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
@@ -115,6 +123,48 @@ export function EditStudent({ onNavigate, studentToEdit, classes, onSave, onArch
             <div className="flex justify-between text-[10px] text-muted font-mono uppercase">
               <span>CURRENT_STATUS:</span>
               <span className={status === 'READY' ? 'text-accent' : 'text-primary'}>{status}</span>
+            </div>
+          </div>
+        )}
+
+        {trendData.length > 0 && (
+          <div className="flex flex-col gap-2 mt-4">
+            <div className="flex items-center gap-2 text-white mb-2">
+              <TrendingUp size={20} className="text-primary" />
+              <label className="text-xs font-bold uppercase tracking-widest">SCORE_PROGRESSION</label>
+            </div>
+            <div className="bg-surface border-2 border-border-harsh p-4 h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                  <XAxis 
+                    dataKey="session" 
+                    stroke="#888" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false} 
+                  />
+                  <YAxis 
+                    stroke="#888" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    domain={[0, 100]} 
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#111', borderColor: '#333', color: '#fff' }}
+                    itemStyle={{ color: '#00FF00' }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="score" 
+                    stroke="#00FF00" 
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: '#00FF00' }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}

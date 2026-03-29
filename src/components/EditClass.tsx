@@ -41,13 +41,13 @@ export function EditClass({ onNavigate, classToEdit, allStudents, onSave, onDele
 
   return (
     <div className="flex flex-col h-full w-full font-mono pb-[140px] bg-background-dark">
-      <header className="flex items-center bg-background-dark p-4 border-b-2 border-border-harsh sticky top-0 z-50">
+      <header className="flex items-center bg-background-dark p-4 border-b-2 border-border-harsh sticky top-0 z-50 gap-3">
         <button 
           onClick={() => onNavigate('ROSTER')}
-          className="mr-4 text-text-main hover:text-primary active:text-primary flex items-center justify-center w-10 h-10 border-2 border-transparent hover:border-border-harsh focus:border-border-harsh focus:outline-none">
+          className="text-text-main hover:text-primary active:text-primary flex items-center justify-center w-10 h-10 border-2 border-transparent hover:border-border-harsh focus:border-border-harsh focus:outline-none shrink-0">
           <ArrowLeft size={24} />
         </button>
-        <h1 className="text-xl font-bold tracking-tight uppercase">&gt; {classToEdit ? 'EDIT_CLASS' : 'NEW_CLASS'}</h1>
+        <h1 className="text-lg sm:text-xl font-bold tracking-tight uppercase flex-1 truncate">&gt; {classToEdit ? 'EDIT_CLASS' : 'NEW_CLASS'}</h1>
       </header>
       
       <main className="flex-1 overflow-y-auto flex flex-col w-full p-4 space-y-8">

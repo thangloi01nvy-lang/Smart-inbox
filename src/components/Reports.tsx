@@ -98,18 +98,22 @@ export function Reports({
   return (
     <div className="flex flex-col h-full w-full font-display pb-32 bg-background-dark min-h-screen">
       {/* Top Navigation */}
-      <header className="flex items-center justify-between p-4 border-b-2 border-border-harsh bg-background-dark shrink-0 sticky top-0 z-50">
-        <button 
-          onClick={() => onNavigate('INBOX')}
-          className="flex items-center justify-center w-10 h-10 bg-background-dark border-2 border-border-harsh text-white hover:bg-surface active:bg-border-harsh">
-          <ArrowLeft size={24} />
-        </button>
-        <h1 className="text-xl font-bold uppercase tracking-wider">&gt; REPORTS_ARCHIVE</h1>
-        <button 
-          onClick={() => onNavigate('REPORT_GEN')}
-          className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
-          [GEN_REPORT]
-        </button>
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b-2 border-border-harsh bg-background-dark shrink-0 sticky top-0 z-50 gap-3">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => onNavigate('INBOX')}
+            className="flex items-center justify-center w-10 h-10 shrink-0 bg-background-dark border-2 border-border-harsh text-white hover:bg-surface active:bg-border-harsh">
+            <ArrowLeft size={24} />
+          </button>
+          <h1 className="text-xl font-bold uppercase tracking-wider">&gt; REPORTS_ARCHIVE</h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button 
+            onClick={() => onNavigate('REPORT_GEN')}
+            className="text-[10px] sm:text-sm font-bold bg-transparent text-text-main px-2 sm:px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+            [GEN_REPORT]
+          </button>
+        </div>
       </header>
 
       {/* Filters */}

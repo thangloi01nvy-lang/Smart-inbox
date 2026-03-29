@@ -263,22 +263,22 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
     <div className="font-display bg-background-dark min-h-screen relative pb-24 selection:bg-primary selection:text-white w-full">
       {/* Sticky TopAppBar */}
       <div className="sticky top-0 z-50 w-full bg-background-dark border-b-2 border-border-harsh">
-        <div className="flex items-center p-4 justify-between">
-          <h2 className="text-text-main text-[32px] font-bold leading-tight tracking-tight uppercase flex-1">&gt; INBOX</h2>
-          <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center p-4 justify-between gap-3">
+          <h2 className="text-text-main text-2xl sm:text-[32px] font-bold leading-tight tracking-tight uppercase flex-1">&gt; INBOX</h2>
+          <div className="flex flex-wrap gap-2">
             <button 
               onClick={() => onNavigate('REPORT_GEN')}
-              className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+              className="text-[10px] sm:text-sm font-bold bg-transparent text-text-main px-2 sm:px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
               [GEN_REPORT]
             </button>
             <button 
               onClick={() => onNavigate('REPORTS')}
-              className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+              className="text-[10px] sm:text-sm font-bold bg-transparent text-text-main px-2 sm:px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
               [REPORTS]
             </button>
             <button 
               onClick={() => onNavigate('ROSTER')}
-              className="text-sm font-bold bg-transparent text-text-main px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+              className="text-[10px] sm:text-sm font-bold bg-transparent text-text-main px-2 sm:px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
               [ROSTER]
             </button>
           </div>
