@@ -86,51 +86,68 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
   const compressImage = async (file: Blob): Promise<Blob> => {
     if (!file.type.startsWith('image/')) return file;
     
-    return new Promise((resolve) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200;
-        const MAX_HEIGHT = 1200;
-        let width = img.width;
-        let height = img.height;
+    try {
+      let imgWidth, imgHeight;
+      let imgSource: CanvasImageSource;
+      
+      if (typeof createImageBitmap !== 'undefined') {
+        const bmp = await createImageBitmap(file);
+        imgWidth = bmp.width;
+        imgHeight = bmp.height;
+        imgSource = bmp;
+      } else {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        await new Promise((resolve, reject) => {
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            resolve(null);
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Image load failed'));
+          };
+          img.src = url;
+        });
+        imgWidth = img.width;
+        imgHeight = img.height;
+        imgSource = img;
+      }
 
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
+      const MAX_WIDTH = 1200;
+      const MAX_HEIGHT = 1200;
+      let width = imgWidth;
+      let height = imgHeight;
 
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(file);
-          return;
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
         }
-        ctx.drawImage(img, 0, 0, width, height);
+      } else {
+        if (height > MAX_HEIGHT) {
+          width *= MAX_HEIGHT / height;
+          height = MAX_HEIGHT;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return file;
+      
+      ctx.drawImage(imgSource, 0, 0, width, height);
+      
+      return await new Promise((resolve) => {
         canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            resolve(file);
-          }
+          resolve(blob || file);
         }, 'image/jpeg', 0.8);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve(file);
-      };
-      img.src = url;
-    });
+      });
+    } catch (e) {
+      console.error("Image compression failed, falling back to original", e);
+      return file;
+    }
   };
 
   const processMediaBlob = async (rawBlob: Blob, rawMimeType: string) => {
@@ -139,6 +156,10 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       return;
     }
     setProcessingCount(prev => prev + 1);
+    
+    // Yield to the event loop so React can render the "UPLOADING..." state
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     try {
       // Compress image if it's an image
       const blob = await compressImage(rawBlob);
