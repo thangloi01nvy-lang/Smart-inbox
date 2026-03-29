@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Download } from 'lucide-react';
 import { db, auth } from '../firebase';
 import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
 import { generateUnifiedReport } from '../services/geminiService';
@@ -179,7 +179,7 @@ export function ReportGen({
   const className = classes.find(c => c.id === selectedClass)?.name || 'Unknown';
 
   return (
-    <div className="flex flex-col items-center h-full w-full font-display pb-24">
+    <div className="flex flex-col items-center h-full w-full font-display pb-24 print:pb-0 print:h-auto print:overflow-visible">
       {/* App Header */}
       <header className="w-full max-w-md bg-surface border-b-2 border-border-harsh sticky top-0 z-50 no-print">
         <div className="flex items-center p-4">
@@ -190,11 +190,19 @@ export function ReportGen({
             <ArrowLeft size={24} />
           </button>
           <h1 className="text-white text-xl font-bold uppercase tracking-widest flex-1 truncate">&gt; REPORT_GEN</h1>
+          {generatedReport && (
+            <button 
+              onClick={() => window.print()}
+              aria-label="Export PDF" 
+              className="text-primary flex w-12 h-12 shrink-0 items-center justify-center border-2 border-border-harsh hover:bg-primary hover:text-black active:bg-primary ml-4 transition-colors">
+              <Download size={24} />
+            </button>
+          )}
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="w-full max-w-md px-4 mt-6 flex-1 flex flex-col gap-6 print-container">
+      <main className="w-full max-w-md px-4 mt-6 flex-1 flex flex-col gap-6 print-container print:max-w-none print:w-full print:m-0 print:p-0">
         
         {/* Configuration Panel */}
         <div className="bg-surface border-2 border-border-harsh p-4 flex flex-col gap-4 no-print">

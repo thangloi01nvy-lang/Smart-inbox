@@ -17,7 +17,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
   const [showMenu, setShowMenu] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingCount, setProcessingCount] = useState(0);
   const [selectedClass, setSelectedClass] = useState(classes[0]?.id || 'UNASSIGNED');
   const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [isTypingNote, setIsTypingNote] = useState(false);
@@ -138,7 +138,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       alert("Please select a student first.");
       return;
     }
-    setIsProcessing(true);
+    setProcessingCount(prev => prev + 1);
     try {
       // Compress image if it's an image
       const blob = await compressImage(rawBlob);
@@ -169,14 +169,14 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
         });
       }
 
-      setIsProcessing(false);
+      setProcessingCount(prev => Math.max(0, prev - 1));
       const studentName = students.find(s => s.id === selectedStudent)?.name || 'Student';
       setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName });
       setTimeout(() => setLastSaved(null), 5000);
     } catch (error) {
       console.error("Error processing media:", error);
       alert("Failed to process media. Please try again.");
-      setIsProcessing(false);
+      setProcessingCount(prev => Math.max(0, prev - 1));
     }
   };
 
@@ -236,7 +236,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       return;
     }
     setIsTypingNote(false);
-    setIsProcessing(true);
+    setProcessingCount(prev => prev + 1);
     try {
       if (auth.currentUser) {
         await addDoc(collection(db, 'logs'), {
@@ -248,14 +248,14 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
           teacherUid: auth.currentUser.uid
         });
       }
-      setIsProcessing(false);
+      setProcessingCount(prev => Math.max(0, prev - 1));
       const studentName = students.find(s => s.id === selectedStudent)?.name || 'Student';
       setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName });
       setTimeout(() => setLastSaved(null), 5000);
     } catch (error: any) {
       console.error("Error saving text log:", error);
       alert("Failed to save text log: " + (error.message || error));
-      setIsProcessing(false);
+      setProcessingCount(prev => Math.max(0, prev - 1));
     }
   };
 
@@ -329,17 +329,19 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
 
       {/* Main Feed Content */}
       <main className="w-full max-w-2xl mx-auto p-4 flex flex-col gap-4">
-        {isProcessing && (
+        {processingCount > 0 && (
           <article className="w-full bg-surface border-2 border-border-harsh rounded-sm p-4 flex flex-col gap-3 cursor-pointer hover:border-muted active:bg-border-harsh">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-4 flex-1">
                 {/* Icon */}
                 <div className="text-text-main flex items-center justify-center border-2 border-border-harsh shrink-0 w-[48px] h-[48px] bg-background-dark rounded-sm">
-                  <Brain size={24} />
+                  <Upload size={24} />
                 </div>
                 {/* Info */}
                 <div className="flex flex-col justify-center gap-1">
-                  <h3 className="text-text-main text-base font-bold leading-none uppercase">ANALYZING...</h3>
+                  <h3 className="text-text-main text-base font-bold leading-none uppercase">
+                    {processingCount > 1 ? `UPLOADING ${processingCount} FILES...` : 'UPLOADING...'}
+                  </h3>
                   <p className="text-muted text-[13px] font-medium leading-none uppercase">PLEASE WAIT</p>
                 </div>
               </div>
@@ -352,7 +354,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
           </article>
         )}
 
-        {reports.length === 0 && !isProcessing ? (
+        {reports.length === 0 && processingCount === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted border-2 border-dashed border-border-harsh">
             <FileText size={48} className="mb-4 opacity-50" />
             <p className="font-bold uppercase tracking-widest">NO_REPORTS_FOUND</p>
@@ -527,28 +529,6 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
               <Square size={18} fill="currentColor" />
               [ STOP_&_SAVE ]
             </button>
-          </div>
-        </div>
-      )}
-      {/* Processing Overlay */}
-      {isProcessing && (
-        <div className="fixed inset-0 bg-background-dark z-[100] flex flex-col p-6 animate-in fade-in duration-200">
-          <div className="flex-1 flex flex-col items-center justify-center gap-8">
-            <div className="relative flex items-center justify-center">
-              <div className="absolute w-32 h-32 rounded-full border-4 border-accent animate-spin border-t-transparent"></div>
-              <div className="w-24 h-24 rounded-full bg-accent flex items-center justify-center z-10">
-                <Brain size={40} className="text-background-dark" />
-              </div>
-            </div>
-            
-            <div className="flex flex-col items-center gap-2">
-              <div className="text-white font-bold tracking-widest uppercase text-lg animate-pulse">
-                &gt; AI_ANALYZING_AUDIO...
-              </div>
-              <div className="text-muted font-bold tracking-widest uppercase text-xs">
-                EXTRACTING_ENTITIES_AND_SENTIMENT
-              </div>
-            </div>
           </div>
         </div>
       )}

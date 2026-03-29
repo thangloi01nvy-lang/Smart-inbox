@@ -40,3 +40,44 @@
       background: #F5F5F5; 
   }
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  .bg-background-dark, .bg-surface {
+    background-color: white !important;
+    color: black !important;
+  }
+  .text-white, .text-text-main {
+    color: black !important;
+  }
+  .border-border-harsh {
+    border-color: #ccc !important;
+  }
+  .bg-primary {
+    background-color: #f94706 !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .bg-accent {
+    background-color: #00E65C !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .text-primary {
+    color: #f94706 !important;
+  }
+  .text-accent {
+    color: #00E65C !important;
+  }
+  .text-muted {
+    color: #666 !important;
+  }
+}

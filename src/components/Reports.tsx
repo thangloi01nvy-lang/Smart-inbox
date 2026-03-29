@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, FileText, Calendar, Users, ChevronRight, Trash2, Filter, User, X } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar, Users, ChevronRight, Trash2, Filter, User, X, Download } from 'lucide-react';
 import { AnalysisResult, Class, Student } from '../types';
 
 export function Reports({ 
@@ -51,6 +51,50 @@ export function Reports({
     return result;
   }, [reports, selectedClassId, selectedStudentId, students, startDate, endDate]);
 
+  const handleExportCSV = () => {
+    if (filteredReports.length === 0) return;
+
+    const headers = ['Date', 'Class', 'Student', 'Target Score', 'Current Score', 'Estimated Days', 'Comment', 'Summary'];
+    const rows: string[][] = [];
+
+    filteredReports.forEach(report => {
+      report.students.forEach(student => {
+        // If a specific student is selected, only export that student's data
+        if (selectedStudentId !== 'ALL') {
+          const selectedStudent = students.find(s => s.id === selectedStudentId);
+          if (selectedStudent && !student.name.toLowerCase().includes(selectedStudent.name.toLowerCase()) && !selectedStudent.name.toLowerCase().includes(student.name.toLowerCase())) {
+            return;
+          }
+        }
+
+        rows.push([
+          `"${new Date(report.date).toLocaleString().replace(/"/g, '""')}"`,
+          `"${(report.className || 'Unknown Class').replace(/"/g, '""')}"`,
+          `"${student.name.replace(/"/g, '""')}"`,
+          student.targetScore?.toString() || '',
+          student.currentScore?.toString() || '',
+          student.estimatedDaysToTarget?.toString() || '',
+          `"${(student.comment || '').replace(/"/g, '""')}"`,
+          `"${(report.summary || '').replace(/"/g, '""')}"`
+        ]);
+      });
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `reports_export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex flex-col h-full w-full font-display pb-32 bg-background-dark min-h-screen">
       {/* Top Navigation */}
@@ -70,9 +114,19 @@ export function Reports({
 
       {/* Filters */}
       <div className="p-4 border-b-2 border-border-harsh bg-surface flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-primary">
-          <Filter size={16} />
-          <span className="text-xs font-bold uppercase tracking-widest">FILTER_REPORTS</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-primary">
+            <Filter size={16} />
+            <span className="text-xs font-bold uppercase tracking-widest">FILTER_REPORTS</span>
+          </div>
+          <button 
+            onClick={handleExportCSV}
+            disabled={filteredReports.length === 0}
+            className="flex items-center gap-2 text-xs font-bold bg-transparent text-primary px-2 py-1 border border-primary hover:bg-primary hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Download size={14} />
+            EXPORT CSV
+          </button>
         </div>
         <div className="flex gap-2">
           <select 

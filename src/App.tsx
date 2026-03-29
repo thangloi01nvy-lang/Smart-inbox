@@ -422,7 +422,7 @@ export default function App() {
     <div className="min-h-screen flex flex-col items-center bg-background-dark text-text-main font-mono selection:bg-primary selection:text-white">
       <div className="w-full max-w-3xl min-h-screen flex flex-col relative border-x-2 border-border-harsh bg-background-dark">
         {/* Header with User Info */}
-        <div className="border-b-2 border-border-harsh p-4 flex justify-between items-center bg-surface">
+        <div className="border-b-2 border-border-harsh p-4 flex justify-between items-center bg-surface no-print">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-primary flex items-center justify-center text-white font-bold border-2 border-black">
               {user.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon size={16} />}

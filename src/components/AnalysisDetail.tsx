@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ArrowLeft, Mic, Play, Brain, User, X, Plus, Send, TrendingUp, Music } from 'lucide-react';
+import { ArrowLeft, Mic, Play, Brain, User, X, Plus, Send, TrendingUp, Music, Download } from 'lucide-react';
 import { AnalysisResult } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -38,20 +38,26 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
   const colors = ['#00FF00', '#FF00FF', '#00FFFF', '#FFFF00', '#FF8800'];
 
   return (
-    <div className="flex flex-col h-full w-full font-display pb-32">
+    <div className="flex flex-col h-full w-full font-display pb-32 print:pb-0 print:h-auto print:overflow-visible">
       {/* Top Navigation */}
-      <header className="flex items-center justify-between p-4 border-b-2 border-border-harsh bg-background-dark shrink-0 sticky top-0 z-50">
+      <header className="flex items-center justify-between p-4 border-b-2 border-border-harsh bg-background-dark shrink-0 sticky top-0 z-50 no-print">
         <button 
           onClick={() => onNavigate('INBOX')}
           className="flex items-center justify-center w-10 h-10 bg-background-dark border-2 border-border-harsh text-white hover:bg-surface active:bg-border-harsh">
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-xl font-bold uppercase tracking-wider">&gt; ANALYSIS_DETAIL</h1>
-        <div className="w-10 h-10"></div>
+        <button 
+          onClick={() => window.print()}
+          className="flex items-center justify-center w-10 h-10 bg-background-dark border-2 border-border-harsh text-primary hover:bg-primary hover:text-black transition-colors"
+          title="Export PDF"
+        >
+          <Download size={20} />
+        </button>
       </header>
 
       {/* Main Scrollable Content */}
-      <main className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
+      <main className="flex-1 overflow-y-auto print:overflow-visible p-4 flex flex-col gap-6">
         {/* Media Header */}
         <section className="bg-surface border-2 border-border-harsh p-4 flex flex-col gap-4">
           <div className="flex items-center justify-between">
@@ -65,7 +71,7 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
           </div>
           
           {analysisResult?.audioUrl && (
-            <div className="mt-2 flex flex-col gap-2">
+            <div className="mt-2 flex flex-col gap-2 no-print">
               <audio 
                 src={analysisResult.audioUrl} 
                 controls 
@@ -218,7 +224,7 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
       </main>
 
       {/* Sticky Bottom Actions */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-background-dark border-t-2 border-border-harsh p-4 flex flex-col gap-4 z-50">
+      <footer className="fixed bottom-0 left-0 right-0 bg-background-dark border-t-2 border-border-harsh p-4 flex flex-col gap-4 z-50 no-print">
         <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
           {/* Student Tags */}
           <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
