@@ -170,8 +170,8 @@ export default function App() {
     const aggregatedStudentsMap = new Map<string, any>();
     
     result.students.forEach(sAnalysis => {
-      const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()));
-      const key = student ? student.id : sAnalysis.name.toLowerCase();
+      const student = students.find(s => (s.name || '').toLowerCase().includes((sAnalysis.name || '').toLowerCase()));
+      const key = student ? student.id : (sAnalysis.name || '').toLowerCase();
       
       if (aggregatedStudentsMap.has(key)) {
         const existing = aggregatedStudentsMap.get(key);
@@ -333,7 +333,7 @@ export default function App() {
       if (reportToDelete) {
         for (const sAnalysis of reportToDelete.students) {
           // Find the student by name matching
-          const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()) || sAnalysis.name.toLowerCase().includes(s.name.toLowerCase()));
+          const student = students.find(s => (s.name || '').toLowerCase().includes((sAnalysis.name || '').toLowerCase()) || (sAnalysis.name || '').toLowerCase().includes((s.name || '').toLowerCase()));
           if (student && student.comments) {
             // Filter out the comment that matches the report's date
             const updatedComments = student.comments.filter(c => c.date !== reportToDelete.date);

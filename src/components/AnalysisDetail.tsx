@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ArrowLeft, Mic, Play, Brain, User, X, Plus, Send, TrendingUp, Music, Download } from 'lucide-react';
+import { ArrowLeft, Mic, Play, Brain, User, X, Plus, Send, TrendingUp, Music, Download, Image } from 'lucide-react';
 import { AnalysisResult } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -62,7 +62,7 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
         <section className="bg-surface border-2 border-border-harsh p-4 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {analysisResult?.audioUrl ? <Music className="text-primary w-8 h-8" /> : <Mic className="text-muted w-8 h-8" />}
+              {analysisResult?.type === 'image_analysis' ? <Image className="text-primary w-8 h-8" /> : (analysisResult?.audioUrl ? <Music className="text-primary w-8 h-8" /> : <Mic className="text-muted w-8 h-8" />)}
               <div>
                 <p className="font-bold text-sm uppercase">SESSION_MEDIA</p>
                 <p className="text-muted text-xs">{analysisResult?.audioUrl ? 'CLOUD_STORED' : 'AI PROCESSED'}</p>
@@ -70,7 +70,7 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
             </div>
           </div>
           
-          {analysisResult?.audioUrl && (
+          {analysisResult?.audioUrl && analysisResult.type !== 'image_analysis' && (
             <div className="mt-2 flex flex-col gap-2 no-print">
               <audio 
                 src={analysisResult.audioUrl} 
@@ -85,6 +85,28 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
                     const msg = document.createElement('p');
                     msg.className = 'audio-deleted-msg text-[10px] text-primary font-bold uppercase italic';
                     msg.innerText = '[ AUDIO_DELETED_TO_SAVE_SPACE ]';
+                    parent.appendChild(msg);
+                  }
+                }}
+              />
+            </div>
+          )}
+
+          {analysisResult?.audioUrl && analysisResult.type === 'image_analysis' && (
+            <div className="mt-2 flex flex-col gap-2 no-print">
+              <img 
+                src={analysisResult.audioUrl} 
+                alt="Analyzed Media" 
+                className="w-full max-h-64 object-contain border-2 border-border-harsh"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector('.image-deleted-msg')) {
+                    const msg = document.createElement('p');
+                    msg.className = 'image-deleted-msg text-[10px] text-primary font-bold uppercase italic';
+                    msg.innerText = '[ IMAGE_DELETED_TO_SAVE_SPACE ]';
                     parent.appendChild(msg);
                   }
                 }}

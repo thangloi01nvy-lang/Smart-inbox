@@ -340,14 +340,14 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       let mimeType = file.type;
       
       // Normalize MP3 mime type for better compatibility with Gemini
-      if (file.name.toLowerCase().endsWith('.mp3')) {
+      if ((file.name || '').toLowerCase().endsWith('.mp3')) {
         mimeType = 'audio/mpeg';
       } else if (!mimeType) {
         // Fallback for common types if browser fails to detect
-        if (file.name.toLowerCase().endsWith('.wav')) mimeType = 'audio/wav';
-        if (file.name.toLowerCase().endsWith('.m4a')) mimeType = 'audio/mp4';
-        if (file.name.toLowerCase().endsWith('.png')) mimeType = 'image/png';
-        if (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) mimeType = 'image/jpeg';
+        if ((file.name || '').toLowerCase().endsWith('.wav')) mimeType = 'audio/wav';
+        if ((file.name || '').toLowerCase().endsWith('.m4a')) mimeType = 'audio/mp4';
+        if ((file.name || '').toLowerCase().endsWith('.png')) mimeType = 'image/png';
+        if ((file.name || '').toLowerCase().endsWith('.jpg') || (file.name || '').toLowerCase().endsWith('.jpeg')) mimeType = 'image/jpeg';
       }
       
       processMediaBlob(file, mimeType || 'application/octet-stream');

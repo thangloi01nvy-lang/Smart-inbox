@@ -19,7 +19,7 @@ export function EditClass({ onNavigate, classToEdit, allStudents, onSave, onDele
 
   const assignedStudents = allStudents.filter(s => s.classId === classId);
   const availableStudents = allStudents.filter(s => s.classId !== classId && 
-    (s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.id.toLowerCase().includes(searchTerm.toLowerCase())));
+    ((s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (s.id || '').toLowerCase().includes(searchTerm.toLowerCase())));
 
   const handleAddStudent = (student: Student) => {
     onSaveStudent({ ...student, classId: classId }, classId, false);

@@ -35,7 +35,7 @@ export function Reports({
     if (selectedStudentId !== 'ALL') {
       const student = students.find(s => s.id === selectedStudentId);
       if (student) {
-        result = result.filter(r => r.students.some(s => s.name.toLowerCase().includes(student.name.toLowerCase()) || student.name.toLowerCase().includes(s.name.toLowerCase())));
+        result = result.filter(r => r.students.some(s => (s.name || '').toLowerCase().includes((student.name || '').toLowerCase()) || (student.name || '').toLowerCase().includes((s.name || '').toLowerCase())));
       }
     }
     if (startDate) {
@@ -62,7 +62,7 @@ export function Reports({
         // If a specific student is selected, only export that student's data
         if (selectedStudentId !== 'ALL') {
           const selectedStudent = students.find(s => s.id === selectedStudentId);
-          if (selectedStudent && !student.name.toLowerCase().includes(selectedStudent.name.toLowerCase()) && !selectedStudent.name.toLowerCase().includes(student.name.toLowerCase())) {
+          if (selectedStudent && !(student.name || '').toLowerCase().includes((selectedStudent.name || '').toLowerCase()) && !(selectedStudent.name || '').toLowerCase().includes((student.name || '').toLowerCase())) {
             return;
           }
         }
@@ -204,7 +204,7 @@ export function Reports({
                 {filteredReports.map(report => {
                   const studentFeedback = report.students.find(s => {
                     const student = students.find(st => st.id === selectedStudentId);
-                    return student && (s.name.toLowerCase().includes(student.name.toLowerCase()) || student.name.toLowerCase().includes(s.name.toLowerCase()));
+                    return student && ((s.name || '').toLowerCase().includes((student.name || '').toLowerCase()) || (student.name || '').toLowerCase().includes((s.name || '').toLowerCase()));
                   });
                   if (!studentFeedback) return null;
                   return (
@@ -255,7 +255,7 @@ export function Reports({
             const studentFeedback = selectedStudentId !== 'ALL' 
               ? report.students.find(s => {
                   const student = students.find(st => st.id === selectedStudentId);
-                  return student && (s.name.toLowerCase().includes(student.name.toLowerCase()) || student.name.toLowerCase().includes(s.name.toLowerCase()));
+                  return student && ((s.name || '').toLowerCase().includes((student.name || '').toLowerCase()) || (student.name || '').toLowerCase().includes((s.name || '').toLowerCase()));
                 })
               : null;
 

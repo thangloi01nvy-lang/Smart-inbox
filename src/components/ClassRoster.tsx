@@ -24,8 +24,8 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
 
   const filteredStudents = (studentList: Student[]) => 
     studentList.filter(s => 
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      s.id.toLowerCase().includes(searchTerm.toLowerCase())
+      (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (s.id || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
   return (
@@ -38,6 +38,11 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
               onClick={() => onNavigate('REPORT_GEN')}
               className="text-[10px] sm:text-sm font-bold bg-transparent text-text-main px-2 sm:px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
               [GEN_REPORT]
+            </button>
+            <button 
+              onClick={() => onNavigate('REPORTS')}
+              className="text-[10px] sm:text-sm font-bold bg-transparent text-text-main px-2 sm:px-3 py-1 border-2 border-border-harsh hover:bg-text-main hover:text-background-dark">
+              [REPORTS]
             </button>
             <button 
               onClick={() => onNavigate('INBOX')}
@@ -74,6 +79,14 @@ export function ClassRoster({ onNavigate, classes, students, onEditClass, onEdit
       </div>
       
       <main className="flex-1 p-4 flex flex-col gap-4 font-mono w-full overflow-y-auto">
+        {classes.length === 0 && unassignedStudents.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-64 text-muted border-2 border-dashed border-border-harsh m-4">
+            <User size={48} className="mb-4 opacity-50" />
+            <p className="font-bold uppercase tracking-widest">NO_CLASSES_FOUND</p>
+            <p className="text-xs mt-2">Click [+ NEW_CLASS] to get started.</p>
+          </div>
+        )}
+
         {classes.map((cls) => {
           const isExpanded = expandedClassId === cls.id;
           const classStudents = filteredStudents(students.filter(s => s.classId === cls.id));
