@@ -1,5 +1,5 @@
 {
-  "name": "Smart Inbox",
-  "description": "A brutalist AI-powered inbox for teachers to record audio, take photos, and generate reports.",
-  "requestFramePermissions": ["microphone", "camera"]
+  "name": "Handwriting Grader & OCR",
+  "description": "An AI-powered tool for English teachers to perform OCR on handwritten assignments and identify spelling errors.",
+  "requestFramePermissions": ["camera"]
 }

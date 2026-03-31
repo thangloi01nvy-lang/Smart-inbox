@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Camera, FileText, Plus, X, Upload, Square, Brain, Trash2 } from 'lucide-react';
 import { Class, Student } from '../types';
 import { storage, auth, db } from '../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc, setDoc, doc } from 'firebase/firestore';
+import { analyzeMedia } from '../services/geminiService';
 
 export function Inbox({ onNavigate, classes, students, reports = [], onDeleteReport, onSelectReport, onGenerateReport }: { 
   onNavigate: (s: string) => void, 
@@ -18,6 +19,9 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [processingCount, setProcessingCount] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingPhase, setProcessingPhase] = useState<'IDLE' | 'PROCESSING'>('IDLE');
   const [selectedClass, setSelectedClass] = useState(classes[0]?.id || 'UNASSIGNED');
   const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [isTypingNote, setIsTypingNote] = useState(false);
@@ -114,8 +118,8 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
         imgSource = img;
       }
 
-      const MAX_WIDTH = 1200;
-      const MAX_HEIGHT = 1200;
+      const MAX_WIDTH = 800;
+      const MAX_HEIGHT = 800;
       let width = imgWidth;
       let height = imgHeight;
 
@@ -142,7 +146,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       return await new Promise((resolve) => {
         canvas.toBlob((blob) => {
           resolve(blob || file);
-        }, 'image/jpeg', 0.8);
+        }, 'image/jpeg', 0.6);
       });
     } catch (e) {
       console.error("Image compression failed, falling back to original", e);
@@ -156,6 +160,9 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       return;
     }
     setProcessingCount(prev => prev + 1);
+    setProcessingPhase('PROCESSING');
+    setUploadProgress(0);
+    setProcessingProgress(0);
     
     // Yield to the event loop so React can render the "UPLOADING..." state
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -165,17 +172,71 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       const blob = await compressImage(rawBlob);
       const mimeType = blob.type || rawMimeType;
 
+      // Convert blob to base64 for Gemini immediately
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      await new Promise((resolve) => {
+        reader.onloadend = resolve;
+      });
+      const base64Data = (reader.result as string).split(',')[1];
+
       // Prepare Firebase Storage upload promise
       let fileUrl = '';
       let storagePath = '';
-      if (auth.currentUser) {
-        const fileId = Date.now().toString();
-        const path = `logs/${auth.currentUser.uid}/${fileId}`;
-        const storageRef = ref(storage, path);
-        const uploadResult = await uploadBytes(storageRef, blob);
-        fileUrl = await getDownloadURL(uploadResult.ref);
-        storagePath = path;
-      }
+      
+      const uploadPromise = (async () => {
+        if (auth.currentUser) {
+          const fileId = Date.now().toString();
+          const path = `logs/${auth.currentUser.uid}/${fileId}`;
+          const storageRef = ref(storage, path);
+          
+          const uploadTask = uploadBytesResumable(storageRef, blob);
+          
+          await new Promise<void>((resolve, reject) => {
+            uploadTask.on('state_changed', 
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(progress);
+              },
+              (error) => {
+                reject(error);
+              },
+              async () => {
+                fileUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                storagePath = path;
+                resolve();
+              }
+            );
+          });
+        }
+      })();
+
+      // Start AI Analysis in parallel
+      const className = classes.find(c => c.id === selectedClass)?.name || 'Unknown';
+      let analysisData: any = null;
+      
+      const aiPromise = (async () => {
+        // Simulate processing progress
+        const progressInterval = setInterval(() => {
+          setProcessingProgress(prev => {
+            if (prev >= 95) return prev;
+            return prev + (95 - prev) * 0.1; // Asymptotic approach to 95%
+          });
+        }, 500);
+
+        try {
+          analysisData = await analyzeMedia(base64Data, mimeType, className);
+        } catch (analyzeError) {
+          console.error("AI Analysis failed:", analyzeError);
+          // We continue to save the log even if AI fails
+        }
+        
+        clearInterval(progressInterval);
+        setProcessingProgress(100);
+      })();
+
+      // Wait for both upload and AI analysis to complete
+      await Promise.all([uploadPromise, aiPromise]);
 
       // Save log to Firestore
       if (auth.currentUser) {
@@ -188,9 +249,59 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
           date: new Date().toISOString(),
           teacherUid: auth.currentUser.uid
         });
+        
+        // Save analysis result if successful
+        if (analysisData) {
+          const newReport = {
+            id: Date.now().toString(),
+            date: new Date().toISOString(),
+            teacherUid: auth.currentUser.uid,
+            classId: selectedClass,
+            className: className,
+            transcript: analysisData.transcript || 'Media Analysis',
+            summary: analysisData.summary || 'Media Analysis',
+            students: analysisData.students,
+            audioUrl: fileUrl,
+            storagePath: storagePath,
+            type: mimeType.startsWith('image/') ? 'image_analysis' : 'audio_analysis'
+          };
+          await setDoc(doc(db, 'analysisResults', newReport.id), newReport);
+          
+          // Update student stats
+          const student = students.find(s => s.id === selectedStudent);
+          if (student && analysisData.students && analysisData.students.length > 0) {
+            const sAnalysis = analysisData.students[0];
+            const newTrend = [...(student.trend || []), sAnalysis.currentScore].slice(-5);
+            
+            const newComment = { date: newReport.date, text: sAnalysis.comment };
+            const updatedComments = [...(student.comments || [])];
+            if (student.lastComment && updatedComments.length === 0) {
+              updatedComments.push({ date: student.lastAnalysisDate || new Date(0).toISOString(), text: student.lastComment });
+            }
+            updatedComments.push(newComment);
+
+            await setDoc(doc(db, 'students', student.id), {
+              ...student,
+              currentScore: sAnalysis.currentScore,
+              targetScore: sAnalysis.targetScore,
+              estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
+              lastComment: sAnalysis.comment,
+              comments: updatedComments,
+              dataPoints: (student.dataPoints || 0) + 1,
+              trend: newTrend,
+              lastAnalysisDate: newReport.date
+            });
+          }
+        }
       }
 
-      setProcessingCount(prev => Math.max(0, prev - 1));
+      setTimeout(() => {
+        setProcessingCount(prev => Math.max(0, prev - 1));
+        setProcessingPhase('IDLE');
+        setUploadProgress(0);
+        setProcessingProgress(0);
+      }, 1000);
+      
       const studentName = students.find(s => s.id === selectedStudent)?.name || 'Student';
       setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName });
       setTimeout(() => setLastSaved(null), 5000);
@@ -198,6 +309,9 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       console.error("Error processing media:", error);
       alert("Failed to process media. Please try again.");
       setProcessingCount(prev => Math.max(0, prev - 1));
+      setProcessingPhase('IDLE');
+      setUploadProgress(0);
+      setProcessingProgress(0);
     }
   };
 
@@ -359,18 +473,38 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
                   <Upload size={24} />
                 </div>
                 {/* Info */}
-                <div className="flex flex-col justify-center gap-1">
+                <div className="flex flex-col justify-center gap-1 flex-1">
                   <h3 className="text-text-main text-base font-bold leading-none uppercase">
-                    {processingCount > 1 ? `UPLOADING ${processingCount} FILES...` : 'UPLOADING...'}
+                    {processingPhase === 'PROCESSING' ? 'PROCESSING MEDIA...' : 'PROCESSING...'}
                   </h3>
-                  <p className="text-muted text-[13px] font-medium leading-none uppercase">PLEASE WAIT</p>
+                  <p className="text-muted text-[13px] font-medium leading-none uppercase">
+                    UPLOADING & ANALYZING
+                  </p>
+                  
+                  {uploadProgress > 0 && uploadProgress < 100 && (
+                    <div className="w-full h-2 bg-background-dark border border-border-harsh mt-2 relative">
+                      <div 
+                        className="h-full bg-primary transition-all duration-300" 
+                        style={{ width: `${uploadProgress}%` }}
+                      ></div>
+                    </div>
+                  )}
+                  
+                  {processingProgress > 0 && processingProgress < 100 && (
+                    <div className="w-full h-2 bg-background-dark border border-border-harsh mt-2 relative">
+                      <div 
+                        className="h-full bg-accent transition-all duration-300" 
+                        style={{ width: `${processingProgress}%` }}
+                      ></div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
             {/* Status Pill */}
-            <div className="self-end px-2 py-1 border-2 border-primary text-primary text-[12px] font-bold uppercase rounded-sm flex items-center gap-2">
-              <span className="w-2 h-2 bg-primary rounded-none animate-pulse"></span>
-              PROCESSING...
+            <div className={`self-end px-2 py-1 border-2 text-[12px] font-bold uppercase rounded-sm flex items-center gap-2 border-accent text-accent`}>
+              <span className={`w-2 h-2 rounded-none animate-pulse bg-accent`}></span>
+              {processingProgress > 0 ? `${Math.round(processingProgress)}%` : 'PROCESSING...'}
             </div>
           </article>
         )}
