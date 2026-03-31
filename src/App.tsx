@@ -1,285 +1,514 @@
-import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, CheckCircle, AlertCircle, RefreshCw, Image as ImageIcon } from 'lucide-react';
-import { gradeHandwriting, GraderResult } from './lib/gemini';
-import { cn } from './lib/utils';
-import Markdown from 'react-markdown';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-function App() {
-  const [isDragging, setIsDragging] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [result, setResult] = useState<GraderResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+import React, { useState, useEffect } from 'react';
+import { ClassRoster } from './components/ClassRoster';
+import { EditClass } from './components/EditClass';
+import { EditStudent } from './components/EditStudent';
+import { ReportGen } from './components/ReportGen';
+import { AnalysisDetail } from './components/AnalysisDetail';
+import { Inbox } from './components/Inbox';
+import { Reports } from './components/Reports';
+import { AnalysisResult as GeminiResult } from './services/geminiService';
+import { Class, Student, AnalysisResult } from './types';
+import { auth, db, storage } from './firebase';
+import { ref, deleteObject } from 'firebase/storage';
+import { 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  User
+} from 'firebase/auth';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  doc, 
+  setDoc, 
+  deleteDoc,
+  orderBy,
+  getDocFromServer
+} from 'firebase/firestore';
+import { LogIn, LogOut, User as UserIcon } from 'lucide-react';
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+type Screen = 'ROSTER' | 'EDIT_CLASS' | 'EDIT_STUDENT' | 'REPORT_GEN' | 'ANALYSIS_DETAIL' | 'INBOX' | 'REPORTS';
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
+export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [currentScreen, setCurrentScreen] = useState<Screen>('ROSTER');
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [reports, setReports] = useState<AnalysisResult[]>([]);
+  
+  const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFileSelection(e.dataTransfer.files[0]);
+  // Auth state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+
+  // Test connection to Firestore
+  useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
     }
-  };
+    testConnection();
+  }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFileSelection(e.target.files[0]);
-    }
-  };
+  // Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsAuthReady(true);
+    });
 
-  const handleFileSelection = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file.');
+    return () => unsubscribe();
+  }, []);
+
+  // Firestore Listeners
+  useEffect(() => {
+    if (!user) {
+      setClasses([]);
+      setStudents([]);
+      setReports([]);
       return;
     }
-    setImageFile(file);
-    setError(null);
-    setResult(null);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
+    const qClasses = query(collection(db, 'classes'), where('teacherUid', '==', user.uid));
+    const unsubClasses = onSnapshot(qClasses, (snapshot) => {
+      const list = snapshot.docs.map(d => d.data() as Class);
+      setClasses(list);
+    }, (error) => console.error("Firestore Error (Classes):", error));
+
+    const qStudents = query(collection(db, 'students'), where('teacherUid', '==', user.uid));
+    const unsubStudents = onSnapshot(qStudents, (snapshot) => {
+      const list = snapshot.docs.map(d => d.data() as Student);
+      setStudents(list);
+    }, (error) => console.error("Firestore Error (Students):", error));
+
+    const qReports = query(
+      collection(db, 'analysisResults'), 
+      where('teacherUid', '==', user.uid),
+      orderBy('date', 'desc')
+    );
+    const unsubReports = onSnapshot(qReports, (snapshot) => {
+      const list = snapshot.docs.map(d => d.data() as AnalysisResult);
+      setReports(list);
+    }, (error) => console.error("Firestore Error (Reports):", error));
+
+    return () => {
+      unsubClasses();
+      unsubStudents();
+      unsubReports();
     };
-    reader.readAsDataURL(file);
-  };
+  }, [user]);
 
-  const processImage = async () => {
-    if (!imageFile || !imagePreview) return;
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setAuthError('');
+    
+    if (!email || !password) {
+      setAuthError('Vui lòng nhập tài khoản và mật khẩu');
+      return;
+    }
 
-    setIsProcessing(true);
-    setError(null);
+    // Auto-append domain if it's just a username like "admin"
+    const loginEmail = email.includes('@') ? email : `${email}@example.com`;
 
     try {
-      const base64Data = imagePreview.split(',')[1];
-      const mimeType = imageFile.type;
+      await signInWithEmailAndPassword(auth, loginEmail, password);
+    } catch (error: any) {
+      console.error("Login Error:", error);
       
-      const graderResult = await gradeHandwriting(base64Data, mimeType);
-      setResult(graderResult);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to process the image. Please try again.');
-    } finally {
-      setIsProcessing(false);
+      // If user not found, let's try to create it automatically to make testing easy
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        try {
+          await createUserWithEmailAndPassword(auth, loginEmail, password);
+        } catch (createError: any) {
+          console.error("Create User Error:", createError);
+          if (createError.code === 'auth/email-already-in-use') {
+            setAuthError('Sai mật khẩu.');
+          } else if (createError.code === 'auth/operation-not-allowed') {
+            setAuthError('Tính năng Đăng nhập bằng Email/Mật khẩu chưa được bật. Vui lòng vào Firebase Console -> Authentication -> Sign-in method và bật Email/Password.');
+          } else {
+            setAuthError('Lỗi: ' + createError.message);
+          }
+        }
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setAuthError('Tính năng Đăng nhập bằng Email/Mật khẩu chưa được bật. Vui lòng vào Firebase Console -> Authentication -> Sign-in method và bật Email/Password.');
+      } else {
+        setAuthError('Lỗi đăng nhập: ' + error.message);
+      }
     }
   };
 
-  const reset = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    setResult(null);
-    setError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const handleLogout = () => signOut(auth);
+
+  const handleAnalysisComplete = async (result: GeminiResult) => {
+    if (!user) return;
+
+    const id = Date.now().toString();
+    const date = new Date().toISOString();
+    
+    // Find class name
+    const cls = classes.find(c => c.name === (result as any).contextClass) || classes[0];
+    
+    // Aggregate students by matched student ID or name to prevent duplicates
+    const aggregatedStudentsMap = new Map<string, any>();
+    
+    result.students.forEach(sAnalysis => {
+      const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()));
+      const key = student ? student.id : sAnalysis.name.toLowerCase();
+      
+      if (aggregatedStudentsMap.has(key)) {
+        const existing = aggregatedStudentsMap.get(key);
+        existing.comment += "\n- " + sAnalysis.comment;
+        existing.currentScore = Math.round((existing.currentScore + sAnalysis.currentScore) / 2);
+        existing.targetScore = Math.max(existing.targetScore, sAnalysis.targetScore);
+        existing.estimatedDaysToTarget = Math.round((existing.estimatedDaysToTarget + sAnalysis.estimatedDaysToTarget) / 2);
+      } else {
+        aggregatedStudentsMap.set(key, { 
+          ...sAnalysis, 
+          comment: "- " + sAnalysis.comment,
+          matchedStudentId: student?.id 
+        });
+      }
+    });
+
+    const aggregatedStudents = Array.from(aggregatedStudentsMap.values());
+
+    const newReport: AnalysisResult = {
+      ...result,
+      id,
+      date,
+      classId: cls?.id || 'UNASSIGNED',
+      className: cls?.name || 'UNASSIGNED',
+      teacherUid: user.uid,
+      students: aggregatedStudents.map(s => ({
+        name: s.name,
+        comment: s.comment,
+        currentScore: s.currentScore,
+        targetScore: s.targetScore,
+        estimatedDaysToTarget: s.estimatedDaysToTarget
+      }))
+    };
+
+    try {
+      await setDoc(doc(db, 'analysisResults', id), newReport);
+      setAnalysisResult(newReport);
+      
+      // Update students in Firestore
+      for (const sAnalysis of aggregatedStudents) {
+        if (sAnalysis.matchedStudentId) {
+          const student = students.find(s => s.id === sAnalysis.matchedStudentId);
+          if (student) {
+            const newTrend = [...(student.trend || []), sAnalysis.currentScore].slice(-5);
+            
+            const newComment = { date, text: sAnalysis.comment };
+            const updatedComments = [...(student.comments || [])];
+            if (student.lastComment && updatedComments.length === 0) {
+              updatedComments.push({ date: student.lastAnalysisDate || new Date(0).toISOString(), text: student.lastComment });
+            }
+            updatedComments.push(newComment);
+
+            await setDoc(doc(db, 'students', student.id), {
+              ...student,
+              currentScore: sAnalysis.currentScore,
+              targetScore: sAnalysis.targetScore,
+              estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
+              lastComment: sAnalysis.comment,
+              comments: updatedComments,
+              dataPoints: (student.dataPoints || 0) + 1,
+              trend: newTrend,
+              lastAnalysisDate: date
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error saving analysis:", error);
     }
   };
+
+  const handleSelectReport = (report: AnalysisResult) => {
+    setAnalysisResult(report);
+    setCurrentScreen('ANALYSIS_DETAIL');
+  };
+
+  const navigate = (s: any) => setCurrentScreen(s);
+
+  const handleEditClass = (id: string | null) => {
+    setSelectedClassId(id);
+    setCurrentScreen('EDIT_CLASS');
+  };
+
+  const handleEditStudent = (id: string | null) => {
+    setSelectedStudentId(id);
+    setCurrentScreen('EDIT_STUDENT');
+  };
+
+  const handleSaveClass = async (updatedClass: Class) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'classes', updatedClass.id), {
+        ...updatedClass,
+        teacherUid: user.uid
+      });
+      setCurrentScreen('ROSTER');
+    } catch (error: any) {
+      console.error("Error saving class:", error);
+      alert("Lỗi khi lưu lớp học: " + error.message);
+    }
+  };
+
+  const handleDeleteClass = async (id: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'classes', id));
+      setCurrentScreen('ROSTER');
+    } catch (error: any) {
+      console.error("Error deleting class:", error);
+      alert("Lỗi khi xóa lớp học: " + error.message);
+    }
+  };
+
+  const handleSaveStudent = async (updatedStudent: Student, newClassId: string, navigateBack: boolean = true) => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'students', updatedStudent.id), {
+        ...updatedStudent,
+        classId: newClassId,
+        teacherUid: user.uid
+      });
+      if (navigateBack) {
+        setCurrentScreen('ROSTER');
+      }
+    } catch (error: any) {
+      console.error("Error saving student:", error);
+      alert("Lỗi khi lưu học sinh: " + error.message);
+    }
+  };
+
+  const handleArchiveStudent = async (id: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'students', id));
+      setCurrentScreen('ROSTER');
+    } catch (error: any) {
+      console.error("Error archiving student:", error);
+      alert("Lỗi khi xóa học sinh: " + error.message);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: string, storagePath?: string) => {
+    if (!user) return;
+    
+    try {
+      // Find the report to get its date and students
+      const reportToDelete = reports.find(r => r.id === reportId);
+      
+      // Delete from Firestore
+      await deleteDoc(doc(db, 'analysisResults', reportId));
+      
+      // Delete from Storage if it has a storagePath
+      if (storagePath) {
+        const fileRef = ref(storage, storagePath);
+        await deleteObject(fileRef).catch(err => console.error("Error deleting file from storage:", err));
+      }
+      
+      // Remove corresponding comments from students
+      if (reportToDelete) {
+        for (const sAnalysis of reportToDelete.students) {
+          // Find the student by name matching
+          const student = students.find(s => s.name.toLowerCase().includes(sAnalysis.name.toLowerCase()) || sAnalysis.name.toLowerCase().includes(s.name.toLowerCase()));
+          if (student && student.comments) {
+            // Filter out the comment that matches the report's date
+            const updatedComments = student.comments.filter(c => c.date !== reportToDelete.date);
+            
+            await setDoc(doc(db, 'students', student.id), {
+              ...student,
+              comments: updatedComments,
+              dataPoints: Math.max(0, (student.dataPoints || 1) - 1)
+            }, { merge: true });
+          }
+        }
+      }
+      
+      if (currentScreen === 'ANALYSIS_DETAIL' && analysisResult?.id === reportId) {
+        setCurrentScreen('INBOX');
+      }
+    } catch (error: any) {
+      console.error("Error deleting report:", error);
+      alert("Lỗi khi xóa báo cáo: " + error.message);
+    }
+  };
+
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background-dark text-white font-mono">
+        <div className="animate-pulse">LOADING_SYSTEM...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background-dark text-white font-mono p-6">
+        <div className="w-full max-w-md border-2 border-border-harsh p-8 bg-surface shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <h1 className="text-4xl font-black mb-2 tracking-tighter italic">TOILET_AI</h1>
+          <p className="text-text-muted mb-8 text-sm">TEACHER_OBSERVATION_&_INTELLIGENT_LEARNING_ENHANCEMENT_TOOL</p>
+          
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div>
+              <label className="block text-xs font-bold mb-1 uppercase tracking-widest text-text-muted">Tài khoản (VD: admin)</label>
+              <input 
+                type="text" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-background-dark border-2 border-border-harsh p-3 text-white focus:outline-none focus:border-primary transition-colors"
+                placeholder="Nhập tài khoản hoặc email..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-xs font-bold mb-1 uppercase tracking-widest text-text-muted">Mật khẩu</label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-background-dark border-2 border-border-harsh p-3 text-white focus:outline-none focus:border-primary transition-colors"
+                placeholder="Nhập mật khẩu..."
+              />
+            </div>
+
+            {authError && (
+              <div className="text-destructive text-xs font-bold bg-destructive/10 p-2 border border-destructive/30">
+                {authError}
+              </div>
+            )}
+            
+            <button 
+              type="submit"
+              className="w-full flex items-center justify-center gap-3 bg-primary text-white p-4 font-bold hover:bg-opacity-90 transition-all border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] mt-2"
+            >
+              <LogIn size={20} />
+              ĐĂNG NHẬP
+            </button>
+          </form>
+          
+          <p className="mt-6 text-[10px] text-text-muted text-center uppercase tracking-widest leading-relaxed">
+            SECURE_CLOUD_SYNC_ENABLED <br/>
+            REAL_TIME_STUDENT_TRACKING
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="bg-surface border-b border-border py-4 px-6 md:px-12 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="bg-primary/10 p-2 rounded-lg">
-            <FileText className="w-6 h-6 text-primary" />
+    <div className="min-h-screen flex flex-col items-center bg-background-dark text-text-main font-mono selection:bg-primary selection:text-white">
+      <div className="w-full max-w-3xl min-h-screen flex flex-col relative border-x-2 border-border-harsh bg-background-dark">
+        {/* Header with User Info */}
+        <div className="border-b-2 border-border-harsh p-4 flex justify-between items-center bg-surface no-print">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-primary flex items-center justify-center text-white font-bold border-2 border-black">
+              {user.photoURL ? <img src={user.photoURL} alt="" className="w-full h-full object-cover" /> : <UserIcon size={16} />}
+            </div>
+            <div>
+              <div className="text-[10px] text-text-muted font-bold uppercase tracking-tighter">TEACHER_ID</div>
+              <div className="text-xs font-bold truncate max-w-[150px]">{user.displayName || user.email}</div>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold text-text-main tracking-tight">Handwriting Grader</h1>
-            <p className="text-xs text-muted">AI-Powered OCR & Spelling Analysis</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left Column: Upload & Preview */}
-        <div className="flex flex-col gap-6">
-          <div className="bg-surface rounded-2xl border border-border p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <ImageIcon className="w-5 h-5 text-muted" />
-              Upload Assignment
-            </h2>
-            
-            {!imagePreview ? (
-              <div
-                className={cn(
-                  "border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
-                  isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-surface/50"
-                )}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <div className="bg-background p-4 rounded-full mb-4 shadow-sm border border-border">
-                  <UploadCloud className="w-8 h-8 text-primary" />
-                </div>
-                <h3 className="font-medium text-text-main mb-1">Click or drag image to upload</h3>
-                <p className="text-sm text-muted">Supports JPG, PNG, WEBP</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="relative rounded-xl overflow-hidden border border-border bg-background flex items-center justify-center min-h-[300px]">
-                  <img 
-                    src={imagePreview} 
-                    alt="Assignment preview" 
-                    className="max-h-[500px] w-auto object-contain"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={reset}
-                    className="flex-1 py-2.5 px-4 rounded-lg border border-border text-text-main font-medium hover:bg-background transition-colors"
-                  >
-                    Choose Another
-                  </button>
-                  <button
-                    onClick={processImage}
-                    disabled={isProcessing}
-                    className="flex-[2] py-2.5 px-4 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                        Analyzing Handwriting...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-5 h-5" />
-                        Grade Assignment
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            {error && (
-              <div className="mt-4 p-4 bg-error-bg border border-error/20 rounded-lg flex items-start gap-3 text-error">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <p className="text-sm font-medium">{error}</p>
-              </div>
-            )}
-          </div>
+          <button 
+            onClick={handleLogout}
+            className="text-[10px] font-bold uppercase border-2 border-border-harsh px-3 py-1 hover:bg-destructive hover:text-white transition-colors"
+          >
+            LOGOUT
+          </button>
         </div>
 
-        {/* Right Column: Results */}
-        <div className="flex flex-col gap-6">
-          {isProcessing ? (
-            <div className="bg-surface rounded-2xl border border-border p-12 shadow-sm flex flex-col items-center justify-center text-center h-full min-h-[400px]">
-              <div className="relative w-16 h-16 mb-6">
-                <div className="absolute inset-0 border-4 border-border rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
-              </div>
-              <h3 className="text-lg font-medium text-text-main mb-2">Analyzing Strokes & Context</h3>
-              <p className="text-muted max-w-sm">
-                Our AI is carefully reading the handwriting, inferring unclear words from context, and checking for spelling errors...
-              </p>
-            </div>
-          ) : result ? (
-            <div className="space-y-6">
-              {/* Transcription Card */}
-              <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
-                <div className="bg-background border-b border-border px-6 py-4">
-                  <h3 className="font-semibold text-text-main">Original Transcription</h3>
-                </div>
-                <div className="p-6">
-                  <p className="font-serif text-lg leading-relaxed text-text-main whitespace-pre-wrap">
-                    {result.transcription}
-                  </p>
-                </div>
-              </div>
-
-              {/* Spelling Errors */}
-              {result.spellingErrors.length > 0 ? (
-                <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
-                  <div className="bg-error-bg border-b border-error/20 px-6 py-4 flex items-center justify-between">
-                    <h3 className="font-semibold text-error flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5" />
-                      Spelling Errors ({result.spellingErrors.length})
-                    </h3>
-                  </div>
-                  <div className="divide-y divide-border">
-                    {result.spellingErrors.map((err, idx) => (
-                      <div key={idx} className="p-4 px-6 flex flex-col sm:flex-row sm:items-center gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-1">
-                            <span className="line-through text-muted font-mono bg-background px-2 py-0.5 rounded text-sm border border-border">
-                              {err.original}
-                            </span>
-                            <span className="text-muted">→</span>
-                            <span className="text-success font-mono font-medium bg-success-bg px-2 py-0.5 rounded text-sm border border-success/20">
-                              {err.corrected}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted italic">"...{err.context}..."</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-success-bg border border-success/20 rounded-2xl p-6 flex items-center gap-4 text-success">
-                  <div className="bg-success/10 p-3 rounded-full">
-                    <CheckCircle className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Perfect Spelling!</h3>
-                    <p className="text-sm opacity-90">No spelling errors were detected in the handwriting.</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Corrected Text */}
-              <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
-                <div className="bg-background border-b border-border px-6 py-4">
-                  <h3 className="font-semibold text-text-main">Corrected Text</h3>
-                </div>
-                <div className="p-6">
-                  <p className="font-serif text-lg leading-relaxed text-text-main whitespace-pre-wrap">
-                    {result.correctedText}
-                  </p>
-                </div>
-              </div>
-
-              {/* Feedback */}
-              <div className="bg-surface rounded-2xl border border-border shadow-sm overflow-hidden">
-                <div className="bg-background border-b border-border px-6 py-4">
-                  <h3 className="font-semibold text-text-main">Teacher's Feedback</h3>
-                </div>
-                <div className="p-6">
-                  <div className="markdown-body">
-                    <Markdown>{result.feedback}</Markdown>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-surface rounded-2xl border border-border p-12 shadow-sm flex flex-col items-center justify-center text-center h-full min-h-[400px] opacity-50">
-              <FileText className="w-16 h-16 text-muted mb-4" />
-              <h3 className="text-lg font-medium text-text-main mb-2">Awaiting Assignment</h3>
-              <p className="text-muted max-w-sm">
-                Upload a handwritten assignment to see the transcription, spelling corrections, and feedback.
-              </p>
-            </div>
-          )}
-        </div>
-      </main>
+        {currentScreen === 'INBOX' && (
+          <Inbox 
+            onNavigate={navigate} 
+            classes={classes} 
+            students={students}
+            reports={reports}
+            onDeleteReport={handleDeleteReport}
+            onSelectReport={handleSelectReport}
+            onGenerateReport={(classId, studentId) => {
+              setSelectedClassId(classId);
+              setSelectedStudentId(studentId);
+              setCurrentScreen('REPORT_GEN');
+            }}
+          />
+        )}
+        {currentScreen === 'ROSTER' && (
+          <ClassRoster 
+            onNavigate={navigate} 
+            classes={classes} 
+            students={students} 
+            onEditClass={handleEditClass} 
+            onEditStudent={handleEditStudent} 
+            onGenerateReport={(classId, studentId) => {
+              setSelectedClassId(classId);
+              setSelectedStudentId(studentId);
+              setCurrentScreen('REPORT_GEN');
+            }}
+          />
+        )}
+        {currentScreen === 'EDIT_CLASS' && (
+          <EditClass 
+            onNavigate={navigate} 
+            classToEdit={classes.find(c => c.id === selectedClassId) || null} 
+            allStudents={students}
+            onSave={handleSaveClass}
+            onDelete={handleDeleteClass}
+            onSaveStudent={handleSaveStudent}
+          />
+        )}
+        {currentScreen === 'EDIT_STUDENT' && (
+          <EditStudent 
+            onNavigate={navigate} 
+            studentToEdit={students.find(s => s.id === selectedStudentId) || null}
+            classes={classes}
+            onSave={handleSaveStudent}
+            onArchive={handleArchiveStudent}
+          />
+        )}
+        {currentScreen === 'REPORT_GEN' && (
+          <ReportGen 
+            onNavigate={navigate} 
+            classes={classes}
+            students={students}
+            initialClassId={selectedClassId}
+            initialStudentId={selectedStudentId}
+          />
+        )}
+        {currentScreen === 'ANALYSIS_DETAIL' && <AnalysisDetail onNavigate={navigate} analysisResult={analysisResult} />}
+        {currentScreen === 'REPORTS' && <Reports onNavigate={navigate} reports={reports} classes={classes} students={students} onSelectReport={handleSelectReport} onDeleteReport={handleDeleteReport} />}
+        {!['INBOX', 'ROSTER', 'EDIT_CLASS', 'EDIT_STUDENT', 'REPORT_GEN', 'ANALYSIS_DETAIL', 'REPORTS'].includes(currentScreen) && (
+          <div className="p-10 text-center">
+            <p>Screen not found: {currentScreen}</p>
+            <button onClick={() => setCurrentScreen('INBOX')} className="mt-4 border p-2">Go to Inbox</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-export default App;
+
+
