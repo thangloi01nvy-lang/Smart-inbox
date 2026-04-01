@@ -6,6 +6,169 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, setDoc, doc } from 'firebase/firestore';
 import { analyzeMedia } from '../services/geminiService';
 
+const preprocessImageForOCR = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  
+  // 1. Grayscale Conversion
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    data[i] = gray;
+    data[i + 1] = gray;
+    data[i + 2] = gray;
+  }
+  
+  // 2. Noise Reduction (Simple 3x3 Box Blur)
+  const blurredData = new Uint8ClampedArray(data.length);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+      let count = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+            sum += data[(ny * width + nx) * 4];
+            count++;
+          }
+        }
+      }
+      const avg = sum / count;
+      const idx = (y * width + x) * 4;
+      blurredData[idx] = avg;
+      blurredData[idx + 1] = avg;
+      blurredData[idx + 2] = avg;
+      blurredData[idx + 3] = data[idx + 3];
+    }
+  }
+  
+  // 3. Adaptive Binarization (Bradley-Roth)
+  const s = Math.floor(width / 16);
+  const t = 15; // 15% threshold
+  const intImg = new Int32Array(width * height);
+  
+  for (let j = 0; j < height; j++) {
+    let sum = 0;
+    for (let i = 0; i < width; i++) {
+      const idx = j * width + i;
+      sum += blurredData[idx * 4];
+      if (j === 0) {
+        intImg[idx] = sum;
+      } else {
+        intImg[idx] = intImg[(j - 1) * width + i] + sum;
+      }
+    }
+  }
+  
+  for (let i = 0; i < width; i++) {
+    for (let j = 0; j < height; j++) {
+      const x1 = Math.max(i - s, 0);
+      const x2 = Math.min(i + s, width - 1);
+      const y1 = Math.max(j - s, 0);
+      const y2 = Math.min(j + s, height - 1);
+      
+      const count = (x2 - x1) * (y2 - y1);
+      
+      const A = (x1 > 0 && y1 > 0) ? intImg[(y1 - 1) * width + (x1 - 1)] : 0;
+      const B = (y1 > 0) ? intImg[(y1 - 1) * width + x2] : 0;
+      const C = (x1 > 0) ? intImg[y2 * width + (x1 - 1)] : 0;
+      const D = intImg[y2 * width + x2];
+      
+      const sum = D - B - C + A;
+      
+      const idx = (j * width + i) * 4;
+      if (blurredData[idx] * count <= sum * (100 - t) / 100) {
+        data[idx] = 0;
+        data[idx+1] = 0;
+        data[idx+2] = 0;
+      } else {
+        data[idx] = 255;
+        data[idx+1] = 255;
+        data[idx+2] = 255;
+      }
+    }
+  }
+  
+  ctx.putImageData(imageData, 0, 0);
+  
+  // 4. Deskewing (Horizontal Projection Profile)
+  let bestAngle = 0;
+  let maxVariance = 0;
+  
+  const scale = 0.25;
+  const sw = Math.floor(width * scale);
+  const sh = Math.floor(height * scale);
+  const sCanvas = document.createElement('canvas');
+  sCanvas.width = sw;
+  sCanvas.height = sh;
+  const sCtx = sCanvas.getContext('2d');
+  
+  if (sCtx) {
+    sCtx.drawImage(ctx.canvas, 0, 0, sw, sh);
+    const sData = sCtx.getImageData(0, 0, sw, sh).data;
+    
+    for (let angle = -10; angle <= 10; angle += 1) {
+      const rad = angle * Math.PI / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      
+      const profile = new Int32Array(sh);
+      
+      for (let y = 0; y < sh; y++) {
+        for (let x = 0; x < sw; x++) {
+          const cx = x - sw / 2;
+          const cy = y - sh / 2;
+          const rx = Math.round(cx * cos - cy * sin + sw / 2);
+          const ry = Math.round(cx * sin + cy * cos + sh / 2);
+          
+          if (rx >= 0 && rx < sw && ry >= 0 && ry < sh) {
+            const val = sData[(y * sw + x) * 4]; // 0 is black (text)
+            if (val < 128) {
+              profile[ry]++;
+            }
+          }
+        }
+      }
+      
+      let sum = 0;
+      let sqSum = 0;
+      for (let i = 0; i < sh; i++) {
+        sum += profile[i];
+        sqSum += profile[i] * profile[i];
+      }
+      const mean = sum / sh;
+      const variance = (sqSum / sh) - (mean * mean);
+      
+      if (variance > maxVariance) {
+        maxVariance = variance;
+        bestAngle = angle;
+      }
+    }
+  }
+  
+  if (bestAngle !== 0) {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx) {
+      tempCtx.putImageData(imageData, 0, 0);
+      
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, width, height);
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+      ctx.rotate(bestAngle * Math.PI / 180);
+      ctx.drawImage(tempCanvas, -width / 2, -height / 2);
+      ctx.restore();
+    }
+  }
+};
+
 export function Inbox({ onNavigate, classes, students, reports = [], onDeleteReport, onSelectReport, onGenerateReport }: { 
   onNavigate: (s: string) => void, 
   classes: Class[],
@@ -142,6 +305,9 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
       if (!ctx) return file;
       
       ctx.drawImage(imgSource, 0, 0, width, height);
+      
+      // Apply advanced OCR preprocessing (Deskewing, Noise Reduction, Binarization)
+      preprocessImageForOCR(ctx, width, height);
       
       return await new Promise((resolve) => {
         canvas.toBlob((blob) => {
