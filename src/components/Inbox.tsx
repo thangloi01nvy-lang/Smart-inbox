@@ -356,24 +356,55 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
           const path = `logs/${auth.currentUser.uid}/${fileId}`;
           const storageRef = ref(storage, path);
           
-          const uploadTask = uploadBytesResumable(storageRef, blob);
-          
-          await new Promise<void>((resolve, reject) => {
-            uploadTask.on('state_changed', 
-              (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                setUploadProgress(progress);
-              },
-              (error) => {
-                reject(error);
-              },
-              async () => {
-                fileUrl = await getDownloadURL(uploadTask.snapshot.ref);
-                storagePath = path;
+          try {
+            const uploadTask = uploadBytesResumable(storageRef, blob);
+            
+            await Promise.race([
+              new Promise<void>((resolve, reject) => {
+                uploadTask.on('state_changed', 
+                  (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    setUploadProgress(progress);
+                  },
+                  (error) => {
+                    console.warn("Firebase Storage upload failed:", error);
+                    setUploadProgress(100);
+                    const base64String = `data:${mimeType};base64,${base64Data}`;
+                    if (base64String.length < 500000) { // < 500KB
+                      fileUrl = base64String;
+                    }
+                    resolve();
+                  },
+                  async () => {
+                    try {
+                      fileUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                      storagePath = path;
+                    } catch (e) {
+                      console.warn("Failed to get download URL:", e);
+                    }
+                    resolve();
+                  }
+                );
+              }),
+              new Promise<void>((resolve) => setTimeout(() => {
+                console.warn("Firebase Storage upload timed out.");
+                uploadTask.cancel();
+                setUploadProgress(100);
+                const base64String = `data:${mimeType};base64,${base64Data}`;
+                if (base64String.length < 500000) { // < 500KB
+                  fileUrl = base64String;
+                }
                 resolve();
-              }
-            );
-          });
+              }, 10000)) // 10 seconds timeout
+            ]);
+          } catch (e) {
+            console.warn("Firebase Storage upload failed:", e);
+            setUploadProgress(100);
+            const base64String = `data:${mimeType};base64,${base64Data}`;
+            if (base64String.length < 500000) { // < 500KB
+              fileUrl = base64String;
+            }
+          }
         }
       })();
 
