@@ -213,6 +213,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
 
       // Start AI Analysis in parallel
       const className = classes.find(c => c.id === selectedClass)?.name || 'Unknown';
+      const studentName = students.find(s => s.id === selectedStudent)?.name || '';
       let analysisData: any = null;
       
       const aiPromise = (async () => {
@@ -225,7 +226,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
         }, 500);
 
         try {
-          analysisData = await analyzeMedia(base64Data, mimeType, className);
+          analysisData = await analyzeMedia(base64Data, mimeType, className, studentName);
         } catch (analyzeError) {
           console.error("AI Analysis failed:", analyzeError);
           // We continue to save the log even if AI fails
@@ -237,6 +238,10 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
 
       // Wait for both upload and AI analysis to complete
       await Promise.all([uploadPromise, aiPromise]);
+
+      if (!analysisData) {
+        alert("AI Analysis failed. Please try again.");
+      }
 
       // Save log to Firestore
       if (auth.currentUser) {
@@ -292,6 +297,10 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
               lastAnalysisDate: newReport.date
             });
           }
+          
+          if (onSelectReport) {
+            onSelectReport(newReport);
+          }
         }
       }
 
@@ -302,8 +311,8 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
         setProcessingProgress(0);
       }, 1000);
       
-      const studentName = students.find(s => s.id === selectedStudent)?.name || 'Student';
-      setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName });
+      const studentNameForLog = students.find(s => s.id === selectedStudent)?.name || 'Student';
+      setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName: studentNameForLog });
       setTimeout(() => setLastSaved(null), 5000);
     } catch (error) {
       console.error("Error processing media:", error);

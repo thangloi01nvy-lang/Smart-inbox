@@ -44,20 +44,23 @@ export interface AnalysisResult {
   summary: string;
   audioUrl?: string;
   storagePath?: string;
+  type?: string;
 }
 
 export async function analyzeMedia(
   base64Data: string,
   mimeType: string,
-  contextClass: string
+  contextClass: string,
+  studentName?: string
 ): Promise<AnalysisResult> {
   const ai = getAiClient();
   const prompt = `
     You are an AI assistant for a teacher. Analyze the provided media (audio or image).
     The context is a class named "${contextClass}".
+    ${studentName ? `IMPORTANT: This media is an assignment or recording from the student named "${studentName}". You MUST include an analysis for "${studentName}" in the students array, even if their name is not explicitly written or spoken in the media.` : ''}
     
     Tasks:
-    1. Identify any students mentioned or present in the content (e.g., "Minh", "Lan").
+    1. Identify any students mentioned or present in the content (e.g., "Minh", "Lan"). ${studentName ? `Make sure to include "${studentName}".` : ''}
     2. For each student identified, provide a brief, constructive comment on their performance (e.g., pronunciation, grammar, vocabulary, or homework quality).
        CRITICAL: You MUST group all feedback for the same student into a SINGLE object in the students array. NEVER return multiple objects for the same student. If a student is mentioned multiple times, combine all their feedback into one comprehensive comment string.
     3. Estimate their current score (0-100), their target score (usually 100), and predict the number of days (estimatedDaysToTarget) they will need to reach their target based on current performance.
