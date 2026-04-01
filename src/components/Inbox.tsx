@@ -227,9 +227,11 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
 
         try {
           analysisData = await analyzeMedia(base64Data, mimeType, className, studentName);
-        } catch (analyzeError) {
+        } catch (analyzeError: any) {
           console.error("AI Analysis failed:", analyzeError);
-          // We continue to save the log even if AI fails
+          clearInterval(progressInterval);
+          setProcessingProgress(100);
+          throw new Error("Lỗi phân tích AI: " + (analyzeError.message || "Không xác định"));
         }
         
         clearInterval(progressInterval);
@@ -238,10 +240,6 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
 
       // Wait for both upload and AI analysis to complete
       await Promise.all([uploadPromise, aiPromise]);
-
-      if (!analysisData) {
-        alert("AI Analysis failed. Please try again.");
-      }
 
       // Save log to Firestore
       if (auth.currentUser) {
@@ -265,7 +263,7 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
             className: className,
             transcript: analysisData.transcript || 'Media Analysis',
             summary: analysisData.summary || 'Media Analysis',
-            students: analysisData.students,
+            students: analysisData.students || [],
             audioUrl: fileUrl,
             storagePath: storagePath,
             type: mimeType.startsWith('image/') ? 'image_analysis' : 'audio_analysis'
@@ -276,9 +274,9 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
           const student = students.find(s => s.id === selectedStudent);
           if (student && analysisData.students && analysisData.students.length > 0) {
             const sAnalysis = analysisData.students[0];
-            const newTrend = [...(student.trend || []), sAnalysis.currentScore].slice(-5);
+            const newTrend = [...(student.trend || []), sAnalysis.currentScore || 0].slice(-5);
             
-            const newComment = { date: newReport.date, text: sAnalysis.comment };
+            const newComment = { date: newReport.date, text: sAnalysis.comment || '' };
             const updatedComments = [...(student.comments || [])];
             if (student.lastComment && updatedComments.length === 0) {
               updatedComments.push({ date: student.lastAnalysisDate || new Date(0).toISOString(), text: student.lastComment });
@@ -287,10 +285,10 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
 
             await setDoc(doc(db, 'students', student.id), {
               ...student,
-              currentScore: sAnalysis.currentScore,
-              targetScore: sAnalysis.targetScore,
-              estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
-              lastComment: sAnalysis.comment,
+              currentScore: sAnalysis.currentScore || 0,
+              targetScore: sAnalysis.targetScore || 100,
+              estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget || 30,
+              lastComment: sAnalysis.comment || '',
               comments: updatedComments,
               dataPoints: (student.dataPoints || 0) + 1,
               trend: newTrend,
@@ -298,25 +296,32 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
             });
           }
           
+          // Reset UI state BEFORE navigating
+          setProcessingCount(prev => Math.max(0, prev - 1));
+          setProcessingPhase('IDLE');
+          setUploadProgress(0);
+          setProcessingProgress(0);
+          
+          const studentNameForLog = students.find(s => s.id === selectedStudent)?.name || 'Student';
+          setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName: studentNameForLog });
+          setTimeout(() => setLastSaved(null), 5000);
+
           if (onSelectReport) {
             onSelectReport(newReport);
           }
+          return; // Exit early since we navigated
         }
       }
 
-      setTimeout(() => {
-        setProcessingCount(prev => Math.max(0, prev - 1));
-        setProcessingPhase('IDLE');
-        setUploadProgress(0);
-        setProcessingProgress(0);
-      }, 1000);
+      // If we reach here, something went wrong but didn't throw
+      setProcessingCount(prev => Math.max(0, prev - 1));
+      setProcessingPhase('IDLE');
+      setUploadProgress(0);
+      setProcessingProgress(0);
       
-      const studentNameForLog = students.find(s => s.id === selectedStudent)?.name || 'Student';
-      setLastSaved({ classId: selectedClass, studentId: selectedStudent, studentName: studentNameForLog });
-      setTimeout(() => setLastSaved(null), 5000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing media:", error);
-      alert("Failed to process media. Please try again.");
+      alert("Lỗi xử lý: " + (error.message || "Vui lòng thử lại."));
       setProcessingCount(prev => Math.max(0, prev - 1));
       setProcessingPhase('IDLE');
       setUploadProgress(0);
