@@ -482,13 +482,13 @@ export function Inbox({ onNavigate, classes, students, reports = [], onDeleteRep
 
             await setDoc(doc(db, 'students', student.id), {
               ...student,
-              currentScore: sAnalysis.currentScore || 0,
-              targetScore: sAnalysis.targetScore || 100,
-              estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget || 30,
+              currentScore: Number(sAnalysis.currentScore) || 0,
+              targetScore: Number(sAnalysis.targetScore) || 100,
+              estimatedDaysToTarget: Number(sAnalysis.estimatedDaysToTarget) || 30,
               lastComment: sAnalysis.comment || '',
               comments: updatedComments,
               dataPoints: (student.dataPoints || 0) + 1,
-              trend: newTrend,
+              trend: newTrend.map(Number),
               lastAnalysisDate: newReport.date
             });
           }

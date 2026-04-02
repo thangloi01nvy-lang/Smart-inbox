@@ -226,13 +226,13 @@ export default function App() {
 
             await setDoc(doc(db, 'students', student.id), {
               ...student,
-              currentScore: sAnalysis.currentScore,
-              targetScore: sAnalysis.targetScore,
-              estimatedDaysToTarget: sAnalysis.estimatedDaysToTarget,
+              currentScore: Number(sAnalysis.currentScore),
+              targetScore: Number(sAnalysis.targetScore),
+              estimatedDaysToTarget: Number(sAnalysis.estimatedDaysToTarget),
               lastComment: sAnalysis.comment,
               comments: updatedComments,
               dataPoints: (student.dataPoints || 0) + 1,
-              trend: newTrend,
+              trend: newTrend.map(Number),
               lastAnalysisDate: date
             });
           }

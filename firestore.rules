@@ -101,7 +101,7 @@ service cloud.firestore {
 
     function isValidUrl(url) {
       return url is string &&
-        (url.matches("^https://.*") || url.matches("^http://.*"));
+        (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:.*"));
     }
 
     function isValidEmail(email) {
@@ -220,6 +220,10 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isValidReport(request.resource.data);
       allow update: if isDocOwner() && isValidReport(request.resource.data) && uidNotModified();
       allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /test/connection {
+      allow read: if true;
     }
 
     // Default deny
