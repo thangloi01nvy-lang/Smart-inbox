@@ -1,9 +1,36 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Mic, Play, Brain, User, X, Plus, Send, TrendingUp, Music, Download, Image } from 'lucide-react';
 import { AnalysisResult } from '../types';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background-dark border-2 border-border-harsh p-3 flex flex-col gap-2 shadow-xl z-50">
+        <p className="text-white font-bold text-sm border-b border-border-harsh pb-1 mb-1">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center justify-between gap-4 text-xs">
+            <span style={{ color: entry.color }} className="font-bold uppercase truncate max-w-[150px]">{entry.name}:</span>
+            <span className="text-white font-mono">{entry.value} pts</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s: string) => void, analysisResult: AnalysisResult | null }) {
+  const [hiddenLines, setHiddenLines] = useState<Record<string, boolean>>({});
+
+  const handleLegendClick = (e: any) => {
+    if (!e || !e.dataKey) return;
+    const { dataKey } = e;
+    setHiddenLines(prev => ({
+      ...prev,
+      [dataKey]: !prev[dataKey]
+    }));
+  };
   
   const chartData = useMemo(() => {
     if (!analysisResult || analysisResult.students.length === 0) return [];
@@ -210,11 +237,11 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis dataKey="name" stroke="#888" fontSize={10} tickMargin={10} />
                   <YAxis stroke="#888" fontSize={10} domain={[0, 100]} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#111', border: '2px solid #333', borderRadius: 0 }}
-                    itemStyle={{ fontSize: 12, fontWeight: 'bold' }}
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend 
+                    wrapperStyle={{ fontSize: 10, paddingTop: 10, cursor: 'pointer' }} 
+                    onClick={handleLegendClick}
                   />
-                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 10 }} />
                   {analysisResult.students.map((student, idx) => (
                     <Line 
                       key={student.name}
@@ -224,6 +251,7 @@ export function AnalysisDetail({ onNavigate, analysisResult }: { onNavigate: (s:
                       strokeWidth={2}
                       dot={{ r: 3, fill: colors[idx % colors.length] }}
                       activeDot={{ r: 5 }}
+                      hide={hiddenLines[student.name]}
                     />
                   ))}
                 </LineChart>

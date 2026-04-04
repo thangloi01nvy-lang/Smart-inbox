@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { ArrowLeft, FileText, Calendar, Users, ChevronRight, Trash2, Filter, User, X, Download } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar, Users, ChevronRight, Trash2, Filter, User, X, Download, TrendingUp } from 'lucide-react';
 import { AnalysisResult, Class, Student } from '../types';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export function Reports({ 
   onNavigate, 
@@ -198,6 +199,59 @@ export function Reports({
                 <p className="text-white text-lg font-bold uppercase">{students.find(s => s.id === selectedStudentId)?.name}</p>
               </div>
             </div>
+            
+            {(() => {
+              const student = students.find(s => s.id === selectedStudentId);
+              if (!student || !student.trend || student.trend.length === 0) return null;
+              
+              const trendData = student.trend.map((score, index) => ({
+                session: `S${index + 1}`,
+                score: score
+              }));
+              
+              return (
+                <div className="flex flex-col gap-2 mb-4">
+                  <div className="flex items-center gap-2 text-white mb-2">
+                    <TrendingUp size={16} className="text-accent" />
+                    <label className="text-xs font-bold uppercase tracking-widest">SCORE_PROGRESSION</label>
+                  </div>
+                  <div className="bg-background-dark border border-border-harsh p-4 h-48 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={trendData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                        <XAxis 
+                          dataKey="session" 
+                          stroke="#888" 
+                          fontSize={10} 
+                          tickLine={false} 
+                          axisLine={false} 
+                        />
+                        <YAxis 
+                          stroke="#888" 
+                          fontSize={10} 
+                          tickLine={false} 
+                          axisLine={false} 
+                          domain={[0, 100]} 
+                        />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#111', borderColor: '#333', color: '#fff' }}
+                          itemStyle={{ color: '#00FF00' }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="score" 
+                          stroke="#00FF00" 
+                          strokeWidth={2}
+                          dot={{ r: 4, fill: '#00FF00' }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex flex-col gap-2">
               <p className="text-xs text-muted uppercase font-bold tracking-widest">ALL_FEEDBACK_HISTORY:</p>
               <div className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
